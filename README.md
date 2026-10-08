@@ -52,7 +52,8 @@ Endpoints: `GET /api` y `GET /api/health` (verifica D1).
 - PWA: manifest "Ecomaster", service worker (Workbox) con precache y caché
   de `/api/*` (NetworkFirst), registrado desde `src/main.tsx`.
 - Íconos generados con `@vite-pwa/assets-generator` desde `public/logo-eco-master.png`
-  (`pnpm exec pwa-assets-generator` usando `pwa-assets.config.ts`).
+  (`pnpm run pwa:icons`: `pwa-assets-generator` + `scripts/pwa-icons.mts` que alinea
+  `maskable-icon-512x512.png` y `apple-touch-icon-180x180.png` con el diseño de `pwa-512x512.png`).
 
 ## Nota (Windows)
 

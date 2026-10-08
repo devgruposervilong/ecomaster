@@ -9,7 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pwa:icons": "pwa-assets-generator && node scripts/pwa-icons.mts"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -26,6 +27,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^16.5.0",
     "jiti": "^2.7.0",
+    "sharp": "^0.35.5",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.46.0",
     "vite": "^7.1.7",
