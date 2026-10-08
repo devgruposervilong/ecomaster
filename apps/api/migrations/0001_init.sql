@@ -1,4 +1,0 @@
-CREATE TABLE IF NOT EXISTS healthcheck (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  checked_at TEXT NOT NULL DEFAULT (datetime('now'))
-);

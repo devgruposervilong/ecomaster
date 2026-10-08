@@ -5,6 +5,9 @@
       "dependsOn": ["^build"],
       "outputs": [".cloudflare/**", "dist/**"]
     },
+    "@tools/api#build": {
+      "dependsOn": ["@tools/web#build"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

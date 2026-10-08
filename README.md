@@ -1,21 +1,25 @@
-# tools
+# ecomaster
 
-Monorepo con Turborepo.
+Monorepo full-stack con Turborepo. PWA en React + API en Cloudflare
+Workers con D1, todo servido desde un solo Worker (mismo origen).
 
 ## Estructura
 
 ```
 apps/
-  api/   Hono + Cloudflare Workers (D1 + R2)
-  web/   React + Vite
+  api/   Hono + Cloudflare Workers (Worker + static assets del web)
+  web/   React + Vite (PWA con vite-plugin-pwa)
 ```
+
+En producción el Worker `tools-api` sirve el frontend (PWA) y la API
+(`/api/*`) en el mismo origen: `https://tools-api.devgruposervilong.workers.dev`.
 
 ## Comandos
 
 ```bash
 pnpm install        # dependencias
 pnpm dev            # api (:8787) + web (:5173)
-pnpm build          # build de ambos
+pnpm build          # build de ambos (api depende del build de web)
 pnpm typecheck      # tsc
 pnpm lint           # eslint (web)
 ```
@@ -27,31 +31,32 @@ CLI: **`cf`** (Cloudflare CLI, beta). Config tipada en `cloudflare.config.ts`.
 - `pnpm --filter @tools/api dev` → `cf dev` en `http://localhost:8787`
 - `pnpm --filter @tools/api build` → `cf build` (salida en `.cloudflare/`)
 - `pnpm --filter @tools/api deploy` → `cf deploy` (requiere `cf auth login`)
-- `pnpm --filter @tools/api db:local` → `cf d1 migrations apply --local`
-- `pnpm --filter @tools/api db:remote` → `cf d1 migrations apply`
-- `pnpm --filter @tools/api db:create` / `r2:create` → crea los recursos
+- `pnpm --filter @tools/api db:generate` → `drizzle-kit generate` (migraciones)
+- `pnpm --filter @tools/api db:local` / `db:remote` → aplican migraciones con `cf d1 migrations apply`
+- `pnpm --filter @tools/api r2:create` → crea el bucket R2 (storage, pendiente)
 
-Bindings en `cloudflare.config.ts`: `DB` (D1), `STORAGE` (R2), `APP_ENV`.
+ORM: **Drizzle** (`drizzle-orm/d1`). Esquema en `src/db/schema.ts`,
+migraciones en `migrations/` (con `drizzle-kit`).
 
-Endpoints: `GET /` y `GET /health` (verifica D1 y R2).
+El build usa el bundler de Wrangler: `wrangler.config.ts` define
+`assetsDirectory: ../web/dist` (build de la PWA) y `cloudflare.config.ts`
+enruta `/api/*` al Worker con fallback SPA (`notFoundHandling:
+single-page-application`).
 
-Antes de desplegar hay que crear los recursos y reemplazar
-`REPLACE_WITH_D1_DATABASE_ID`:
-
-```bash
-pnpm --filter @tools/api db:create    # cf d1 create tools-db
-pnpm --filter @tools/api r2:create    # cf r2 buckets create-by-name tools-storage
-cf auth login
-```
+Endpoints: `GET /api` y `GET /api/health` (verifica D1).
 
 ## Web (`apps/web`)
 
 - `pnpm --filter @tools/api dev` + `pnpm --filter @tools/web dev`
 - Vite en `http://localhost:5173` con proxy de `/api` → `http://localhost:8787`
+- PWA: manifest "Ecomaster", service worker (Workbox) con precache y caché
+  de `/api/*` (NetworkFirst), registrado desde `src/main.tsx`.
+- Íconos generados con `@vite-pwa/assets-generator` desde `public/ecomaster.svg`
+  (`pnpm exec pwa-assets-generator` usando `pwa-assets.config.ts`).
 
 ## Nota (Windows)
 
 `workerd.exe` requiere el runtime de Visual C++ 2015-2022. El script
-`apps/api/scripts/workerd-runtime.mjs` (se ejecuta en `postinstall`) copia las
+`apps/api/scripts/workerd-runtime.mts` (se ejecuta en `postinstall`) copia las
 DLLs necesarias junto al binario; si no las encuentra, instala
 <https://aka.ms/vs/17/release/vc_redist.x64.exe>.

@@ -17,7 +17,7 @@ const SOURCE_DIRS = [
   'C:\\Users\\finanzas_4\\AppData\\Roaming\\Zoom\\bin',
 ]
 
-function findBinDir() {
+function findBinDir(): string | null {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
   const pnpmDir = join(root, 'node_modules', '.pnpm')
   if (!existsSync(pnpmDir)) return null
@@ -26,7 +26,7 @@ function findBinDir() {
   return join(pnpmDir, entry, 'node_modules', '@cloudflare', 'workerd-windows-64', 'bin')
 }
 
-function findSourceDir() {
+function findSourceDir(): string | null {
   for (const base of SOURCE_DIRS) {
     if (!existsSync(base)) continue
     if (DLLS.every((dll) => existsSync(join(base, dll)))) return base

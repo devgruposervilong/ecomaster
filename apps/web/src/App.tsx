@@ -1,21 +1,45 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-type Health = { status: string; db?: boolean; storage?: boolean }
+type Health = { status: string; db?: boolean }
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null)
+  const [online, setOnline] = useState(() => navigator.onLine)
 
-  useEffect(() => {
+  const check = useCallback(() => {
     fetch('/api/health')
       .then((res) => res.json())
       .then(setHealth)
       .catch(() => setHealth({ status: 'offline' }))
   }, [])
 
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => {
+      window.removeEventListener('online', on)
+      window.removeEventListener('offline', off)
+    }
+  }, [])
+
+  useEffect(() => {
+    check()
+  }, [check])
+
   return (
     <main>
-      <h1>Tools</h1>
-      <p>API: {health?.status ?? 'cargando...'}</p>
+      <h1>Ecomaster</h1>
+      <p>
+        API: {health?.status ?? 'cargando...'} {!online && '(sin conexión)'}
+      </p>
+      <p>
+        <strong>Estado:</strong> {online ? 'Con conexión' : 'Offline'} · Instalable como PWA
+      </p>
+      <button type="button" onClick={check} disabled={!online}>
+        Reintentar
+      </button>
     </main>
   )
 }

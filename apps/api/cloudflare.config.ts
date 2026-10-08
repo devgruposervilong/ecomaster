@@ -6,6 +6,10 @@ export default defineConfig({
     compatibilityDate: '2026-09-01',
     compatibilityFlags: ['nodejs_compat'],
     entrypoint: 'src/index.ts',
+    assets: {
+      notFoundHandling: 'single-page-application',
+      runWorkerFirst: ['/api/*'],
+    },
     observability: {
       enabled: true,
     },
