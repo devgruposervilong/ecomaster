@@ -1,0 +1,12 @@
+node_modules
+dist
+.turbo
+.wrangler
+.cloudflare
+.dev.vars
+.env
+.env*
+*.local
+
+.DS_Store
+*.log

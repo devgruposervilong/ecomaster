@@ -1,0 +1,28 @@
+{
+  "name": "@tools/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/workerd-runtime.mjs",
+    "dev": "cf dev",
+    "start": "cf dev",
+    "build": "cf build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "deploy": "cf deploy",
+    "db:create": "cf d1 create --name tools-db",
+    "db:local": "cf d1 migrations apply 584af39d-eb80-486e-8b85-abe9e46b530d --local --dir migrations",
+    "db:remote": "cf d1 migrations apply 584af39d-eb80-486e-8b85-abe9e46b530d --dir migrations",
+    "r2:create": "cf r2 buckets create-by-name tools-storage"
+  },
+  "dependencies": {
+    "hono": "^4.9.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261008.1",
+    "cf": "1.0.0-beta.13",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.136.0"
+  }
+}
