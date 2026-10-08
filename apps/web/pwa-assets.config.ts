@@ -3,5 +3,5 @@ import { minimal2023Preset } from '@vite-pwa/assets-generator/presets/minimal-20
 
 export default defineConfig({
   preset: minimal2023Preset,
-  images: ['public/ecomaster.svg'],
+  images: ['public/logo-eco-master.png'],
 })

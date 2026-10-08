@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import InstallPrompt from './InstallPrompt'
 
 type Health = { status: string; db?: boolean }
 
@@ -30,6 +31,7 @@ export default function App() {
 
   return (
     <main>
+      <InstallPrompt />
       <h1>Ecomaster</h1>
       <p>
         API: {health?.status ?? 'cargando...'} {!online && '(sin conexión)'}

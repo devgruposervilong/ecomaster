@@ -51,7 +51,7 @@ Endpoints: `GET /api` y `GET /api/health` (verifica D1).
 - Vite en `http://localhost:5173` con proxy de `/api` → `http://localhost:8787`
 - PWA: manifest "Ecomaster", service worker (Workbox) con precache y caché
   de `/api/*` (NetworkFirst), registrado desde `src/main.tsx`.
-- Íconos generados con `@vite-pwa/assets-generator` desde `public/ecomaster.svg`
+- Íconos generados con `@vite-pwa/assets-generator` desde `public/logo-eco-master.png`
   (`pnpm exec pwa-assets-generator` usando `pwa-assets.config.ts`).
 
 ## Nota (Windows)
