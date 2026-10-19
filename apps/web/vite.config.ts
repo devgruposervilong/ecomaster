@@ -19,7 +19,8 @@ export default defineConfig({
         short_name: 'Ecomaster',
         description: 'App full-stack Ecomaster',
         theme_color: '#0f172a',
-        background_color: '#0f172a',
+        // Igual que el fondo del icono: el splash de Android queda continuo.
+        background_color: '#000000',
         display: 'standalone',
         start_url: '/',
         scope: '/',
@@ -44,6 +45,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        // Safari descarga el startup image al instalar; precachear todas las
+        // variantes (iPhone/iPad) solo engordaría el service worker.
+        globIgnores: ['splash/**'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [

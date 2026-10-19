@@ -10,7 +10,9 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "preview": "vite preview",
-    "pwa:icons": "pwa-assets-generator && node scripts/pwa-icons.mts"
+    "pwa:icons": "pwa-assets-generator && node scripts/pwa-icons.mts",
+    "pwa:splash": "node scripts/pwa-splash.mts",
+    "pwa:assets": "pnpm pwa:icons && pnpm pwa:splash"
   },
   "dependencies": {
     "react": "^19.2.0",

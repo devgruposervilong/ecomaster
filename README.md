@@ -55,6 +55,18 @@ Endpoints: `GET /api` y `GET /api/health` (verifica D1).
   (`pnpm run pwa:icons`): luego `scripts/pwa-icons.mts` aplica fondo negro (para que el
   texto blanco del logo sea visible), alinea `maskable-icon-512x512.png` con `pwa-512x512.png`
   y genera `apple-touch-icon-180x180.png` desde este.
+- Splash de arranque: fondo negro con el logo centrado.
+  - **Android**: lo genera Chrome desde el manifest (`background_color: #000000`
+    + el icono, que también es negro).
+  - **iOS/iPadOS**: Safari no usa el manifest, así que `scripts/pwa-splash.mts`
+    (`pnpm run pwa:splash`) compone las imágenes `apple-touch-startup-image` para
+    18 clases de dispositivo (vertical y horizontal) en `public/splash/` y
+    reescribe los `<link>` en `index.html` entre los marcadores `pwa-splash`.
+    Quedan fuera del precache del service worker (`globIgnores: ['splash/**']`),
+    porque Safari solo descarga la que le corresponde al instalar.
+  - **Web/escritorio**: el splash inicial vive dentro de `#root` en `index.html`
+    y React lo reemplaza al montar.
+  - `pnpm run pwa:assets` regenera íconos + splash.
 
 ## Nota (Windows)
 
