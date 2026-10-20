@@ -72,6 +72,33 @@ Endpoints: `GET /api` y `GET /api/health` (verifica D1).
     y React lo reemplaza al montar.
   - `pnpm run pwa:assets` regenera logo B/N + íconos + splash.
 
+## Actualizaciones automáticas
+
+La PWA usa `registerType: 'autoUpdate'`: cuando se publica una versión nueva, el
+service worker se activa al instante (`skipWaiting` + `clientsClaim`) y la página
+se recarga sola. `cleanupOutdatedCaches` elimina los precaches viejos.
+
+`src/main.tsx` fuerza la comprobación de versión (`registration.update()`):
+
+- al arrancar, cuando se registra el service worker;
+- al volver a la app (`visibilitychange` / `focus`), clave en móvil porque la
+  PWA se reanuda desde segundo plano sin recargar;
+- cada 30 minutos mientras la app sigue abierta.
+
+Los usuarios reciben el cambio cuando se **despliega** la nueva versión:
+
+```bash
+pnpm build
+pnpm --filter @tools/api deploy
+```
+
+Cloudflare sirve `sw.js` con `Cache-Control: public, max-age=0, must-revalidate`,
+así que el navegador siempre revalida el service worker y no se queda con uno
+viejo. Para desplegar en cada push, conecta el repo a Cloudflare Workers Builds.
+
+En iOS, si la app estaba suspendida, la actualización llega al volver a abrirla;
+en Android/Chrome, al abrirla o en la siguiente comprobación periódica.
+
 ## Nota (Windows)
 
 `workerd.exe` requiere el runtime de Visual C++ 2015-2022. El script
