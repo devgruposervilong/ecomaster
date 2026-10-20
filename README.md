@@ -51,10 +51,14 @@ Endpoints: `GET /api` y `GET /api/health` (verifica D1).
 - Vite en `http://localhost:5173` con proxy de `/api` → `http://localhost:8787`
 - PWA: manifest "Ecomaster", service worker (Workbox) con precache y caché
   de `/api/*` (NetworkFirst), registrado desde `src/main.tsx`.
-- Íconos generados con `@vite-pwa/assets-generator` desde `public/logo-eco-master.png`
-  (`pnpm run pwa:icons`): luego `scripts/pwa-icons.mts` aplica fondo negro (para que el
-  texto blanco del logo sea visible), alinea `maskable-icon-512x512.png` con `pwa-512x512.png`
-  y genera `apple-touch-icon-180x180.png` desde este.
+- Marca en blanco y negro: `scripts/monochrome-logo.mts` (`pnpm run pwa:monochrome`)
+  convierte `public/logo-eco-master.png` (blanco + verde) en
+  `public/logo-eco-master-bw.png` (blanco puro, conservando la transparencia).
+  Es la fuente de los íconos y del splash.
+- Íconos generados con `@vite-pwa/assets-generator` desde `public/logo-eco-master-bw.png`
+  (`pnpm run pwa:icons`): luego `scripts/pwa-icons.mts` aplica fondo negro,
+  alinea `maskable-icon-512x512.png` con `pwa-512x512.png` y genera
+  `apple-touch-icon-180x180.png` desde este.
 - Splash de arranque: fondo negro con el logo centrado.
   - **Android**: lo genera Chrome desde el manifest (`background_color: #000000`
     + el icono, que también es negro).
@@ -66,7 +70,7 @@ Endpoints: `GET /api` y `GET /api/health` (verifica D1).
     porque Safari solo descarga la que le corresponde al instalar.
   - **Web/escritorio**: el splash inicial vive dentro de `#root` en `index.html`
     y React lo reemplaza al montar.
-  - `pnpm run pwa:assets` regenera íconos + splash.
+  - `pnpm run pwa:assets` regenera logo B/N + íconos + splash.
 
 ## Nota (Windows)
 

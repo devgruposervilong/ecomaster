@@ -6,5 +6,5 @@ export default defineConfig({
     ...minimal2023Preset,
     maskable: { sizes: [512], padding: 0 },
   },
-  images: ['public/logo-eco-master.png'],
+  images: ['public/logo-eco-master-bw.png'],
 })

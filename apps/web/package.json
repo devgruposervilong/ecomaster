@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "pwa:icons": "pwa-assets-generator && node scripts/pwa-icons.mts",
     "pwa:splash": "node scripts/pwa-splash.mts",
-    "pwa:assets": "pnpm pwa:icons && pnpm pwa:splash"
+    "pwa:monochrome": "node scripts/monochrome-logo.mts",
+    "pwa:assets": "pnpm pwa:monochrome && pnpm pwa:icons && pnpm pwa:splash"
   },
   "dependencies": {
     "react": "^19.2.0",

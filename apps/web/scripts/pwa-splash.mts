@@ -28,7 +28,7 @@ const webDir = join(dirname(fileURLToPath(import.meta.url)), '..')
 const publicDir = join(webDir, 'public')
 const splashDir = join(publicDir, 'splash')
 const indexPath = join(webDir, 'index.html')
-const logoPath = join(publicDir, 'logo-eco-master.png')
+const logoPath = join(publicDir, 'logo-eco-master-bw.png')
 
 /** Igual que el fondo del icono y que `background_color` del manifest. */
 const BACKGROUND = '#000000'
