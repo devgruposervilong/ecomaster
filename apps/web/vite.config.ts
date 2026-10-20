@@ -18,7 +18,8 @@ export default defineConfig({
         name: 'Ecomaster',
         short_name: 'Ecomaster',
         description: 'App full-stack Ecomaster',
-        theme_color: '#0f172a',
+        // Negro para que la barra de estado y el splash de Android sean continuos.
+        theme_color: '#000000',
         // Igual que el fondo del icono: el splash de Android queda continuo.
         background_color: '#000000',
         display: 'standalone',
