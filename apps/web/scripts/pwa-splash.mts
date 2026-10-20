@@ -31,7 +31,7 @@ const indexPath = join(webDir, 'index.html')
 const logoPath = join(publicDir, 'logo-eco-master-bw.png')
 
 /** Igual que el fondo del icono y que `background_color` del manifest. */
-const BACKGROUND = '#000000'
+const BACKGROUND = '#0A0A0A'
 /** El logo ocupa el 60% del lado corto de la pantalla (uniforme en todas). */
 const LOGO_SHORT_EDGE_RATIO = 0.6
 /** Tope de altura para que no domine la pantalla en orientaciones extremas. */

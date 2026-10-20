@@ -1,10 +1,23 @@
+import { fileURLToPath } from 'node:url'
+import tailwindcss from '@tailwindcss/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   plugins: [
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+    }),
     react(),
+    tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: [
@@ -15,13 +28,11 @@ export default defineConfig({
         'maskable-icon-512x512.png',
       ],
       manifest: {
-        name: 'Ecomaster',
-        short_name: 'Ecomaster',
-        description: 'App full-stack Ecomaster',
-        // Negro para que la barra de estado y el splash de Android sean continuos.
-        theme_color: '#000000',
-        // Igual que el fondo del icono: el splash de Android queda continuo.
-        background_color: '#000000',
+        name: 'Eco Master Backoffice',
+        short_name: 'Eco Master',
+        description: 'Backoffice de aliados comerciales de Eco Master',
+        theme_color: '#0A0A0A',
+        background_color: '#0A0A0A',
         display: 'standalone',
         start_url: '/',
         scope: '/',
@@ -51,23 +62,10 @@ export default defineConfig({
         globIgnores: ['splash/**'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              networkTimeoutSeconds: 3,
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7,
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-        ],
+        cleanupOutdatedCaches: true,
+        // No cacheamos /api/*: las respuestas están autenticadas y pueden
+        // contener datos de un aliado. El cache del service worker es compartido
+        // por el origen y no debe sobrevivir al cierre de sesión.
       },
     }),
   ],

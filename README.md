@@ -1,103 +1,168 @@
-# ecomaster
+# Eco Master Backoffice
 
-Monorepo full-stack con Turborepo. PWA en React + API en Cloudflare
-Workers con D1, todo servido desde un solo Worker (mismo origen).
+Backoffice de aliados comerciales de Eco Master. Monorepo full-stack con
+Turborepo, PWA en React y API en Cloudflare Workers con D1, servidos desde un
+mismo Worker.
+
+## Estado actual
+
+La primera fase implementa:
+
+- Autenticación con Better Auth y D1.
+- Setup inicial protegido por `SETUP_TOKEN`.
+- Invitaciones de un solo uso compartibles por WhatsApp.
+- Roles `admin`, `partner_admin` y `partner_operator`.
+- Aislamiento de datos por aliado.
+- Dashboard, usuarios, aliados y ajustes.
+- PWA instalable, sin caché de respuestas `/api/*`.
+
+Ventas, catálogo, inventario, finanzas, reportes y tienda online aparecen como
+módulos "En construcción" hasta la siguiente fase.
 
 ## Estructura
 
 ```
 apps/
-  api/   Hono + Cloudflare Workers (Worker + static assets del web)
-  web/   React + Vite (PWA con vite-plugin-pwa)
+  api/       Hono + Cloudflare Workers (Worker + static assets del web)
+  web/       React + Vite (PWA con vite-plugin-pwa)
+packages/
+  shared/    Contratos Zod y tipos compartidos entre API y web
 ```
 
 En producción el Worker `tools-api` sirve el frontend (PWA) y la API
-(`/api/*`) en el mismo origen: `https://tools-api.devgruposervilong.workers.dev`.
+(`/api/*`) en el mismo origen.
+
+## Puesta en marcha
+
+Requisitos: Node.js 22+, pnpm 11 y el CLI `cf` para desarrollo local.
+
+```bash
+pnpm install
+
+# Crea apps/api/.dev.vars a partir del ejemplo.
+cp apps/api/.dev.vars.example apps/api/.dev.vars
+
+# Aplica las migraciones a la D1 local que usa cf dev.
+pnpm --filter @tools/api db:local
+
+# En dos terminales:
+pnpm --filter @tools/api dev   # http://localhost:8787
+pnpm --filter @tools/web dev   # http://localhost:5173
+```
+
+Abre <http://localhost:5173/setup> y usa el `SETUP_TOKEN` de `.dev.vars` para
+crear el primer administrador. El setup queda deshabilitado en cuanto existe un
+administrador.
+
+Para reiniciar la base local (borra usuarios, aliados e invitaciones de prueba):
+
+```powershell
+Remove-Item -Recurse -Force apps/api/.wrangler/state
+pnpm --filter @tools/api db:local
+```
+
+### Variables de entorno
+
+Desarrollo local (`apps/api/.dev.vars`, no se commitea):
+
+- `BETTER_AUTH_SECRET`: secreto largo y aleatorio.
+- `SETUP_TOKEN`: token de un solo uso para `/setup`.
+
+La URL pública se configura en `apps/api/cloudflare.config.ts`. Por defecto es
+`http://localhost:5173`; en producción exporta `APP_URL` (y opcionalmente
+`BETTER_AUTH_URL`) antes de construir/desplegar. En PowerShell:
+
+```powershell
+$env:APP_URL = "https://backoffice.ecomaster.com"
+pnpm --filter @tools/api deploy
+```
+
+En macOS/Linux:
+
+```bash
+APP_URL=https://backoffice.ecomaster.com pnpm --filter @tools/api deploy
+```
+
+Los secretos de producción deben cargarse con el CLI de Cloudflare (`cf secret
+put`) o desde el panel del Worker.
 
 ## Comandos
 
 ```bash
-pnpm install        # dependencias
 pnpm dev            # api (:8787) + web (:5173)
 pnpm build          # build de ambos (api depende del build de web)
-pnpm typecheck      # tsc
+pnpm typecheck      # tsc en todos los paquetes
 pnpm lint           # eslint (web)
+pnpm format         # Prettier
 ```
 
-## API (`apps/api`)
+### API (`apps/api`)
 
 CLI: **`cf`** (Cloudflare CLI, beta). Config tipada en `cloudflare.config.ts`.
 
 - `pnpm --filter @tools/api dev` → `cf dev` en `http://localhost:8787`
 - `pnpm --filter @tools/api build` → `cf build` (salida en `.cloudflare/`)
-- `pnpm --filter @tools/api deploy` → `cf deploy` (requiere `cf auth login`)
-- `pnpm --filter @tools/api db:generate` → `drizzle-kit generate` (migraciones)
-- `pnpm --filter @tools/api db:local` / `db:remote` → aplican migraciones con `cf d1 migrations apply`
-- `pnpm --filter @tools/api r2:create` → crea el bucket R2 (storage, pendiente)
+- `pnpm --filter @tools/api deploy` → `cf deploy`
+- `pnpm --filter @tools/api db:generate` → genera migraciones con Drizzle Kit
+- `pnpm --filter @tools/api db:local` → aplica migraciones a D1 local
+- `pnpm --filter @tools/api db:remote` → aplica migraciones a D1 remota
 
-ORM: **Drizzle** (`drizzle-orm/d1`). Esquema en `src/db/schema.ts`,
-migraciones en `migrations/` (con `drizzle-kit`).
+ORM: **Drizzle** (`drizzle-orm/d1`). Esquema en `src/db/schema/`, migraciones en
+`migrations/`.
 
-El build usa el bundler de Wrangler: `wrangler.config.ts` define
-`assetsDirectory: ../web/dist` (build de la PWA) y `cloudflare.config.ts`
-enruta `/api/*` al Worker con fallback SPA (`notFoundHandling:
-single-page-application`).
+`wrangler.config.ts` define `assetsDirectory: ../web/dist` y
+`cloudflare.config.ts` enruta `/api` y `/api/*` al Worker con fallback SPA.
 
-Endpoints: `GET /api` y `GET /api/health` (verifica D1).
+Endpoints principales:
 
-## Web (`apps/web`)
+- `GET /api/health`
+- `GET /api/setup/status`, `POST /api/setup`
+- `GET /api/me`
+- `GET /api/dashboard/summary`
+- `GET|POST /api/invites/:token[/accept]`
+- `GET|POST|PATCH /api/admin/partners`, `/api/admin/users`, `/api/admin/invites`
 
-- `pnpm --filter @tools/api dev` + `pnpm --filter @tools/web dev`
+El alta pública de Better Auth (`/api/auth/sign-up/*`) está bloqueada: las
+cuentas solo se crean por setup o por invitación.
+
+### Web (`apps/web`)
+
 - Vite en `http://localhost:5173` con proxy de `/api` → `http://localhost:8787`
-- PWA: manifest "Ecomaster", service worker (Workbox) con precache y caché
-  de `/api/*` (NetworkFirst), registrado desde `src/main.tsx`.
-- Marca en blanco y negro: `scripts/monochrome-logo.mts` (`pnpm run pwa:monochrome`)
-  convierte `public/logo-eco-master.png` (blanco + verde) en
-  `public/logo-eco-master-bw.png` (blanco puro, conservando la transparencia).
-  Es la fuente de los íconos y del splash.
-- Íconos generados con `@vite-pwa/assets-generator` desde `public/logo-eco-master-bw.png`
-  (`pnpm run pwa:icons`): luego `scripts/pwa-icons.mts` aplica fondo negro,
-  alinea `maskable-icon-512x512.png` con `pwa-512x512.png` y genera
-  `apple-touch-icon-180x180.png` desde este.
-- Splash de arranque: fondo negro con el logo centrado.
-  - **Android**: lo genera Chrome desde el manifest (`background_color: #000000`
-    + el icono, que también es negro).
-  - **iOS/iPadOS**: Safari no usa el manifest, así que `scripts/pwa-splash.mts`
-    (`pnpm run pwa:splash`) compone las imágenes `apple-touch-startup-image` para
-    18 clases de dispositivo (vertical y horizontal) en `public/splash/` y
-    reescribe los `<link>` en `index.html` entre los marcadores `pwa-splash`.
-    Quedan fuera del precache del service worker (`globIgnores: ['splash/**']`),
-    porque Safari solo descarga la que le corresponde al instalar.
-  - **Web/escritorio**: el splash inicial vive dentro de `#root` en `index.html`
-    y React lo reemplaza al montar.
-  - `pnpm run pwa:assets` regenera logo B/N + íconos + splash.
+- PWA con manifest `Eco Master Backoffice`, service worker Workbox y actualización
+  automática.
+- No se cachean respuestas de `/api/*`: el cache del service worker es compartido
+  por el origen y no debe guardar datos autenticados de un aliado.
+- Paleta visual: `#FFFFFF`, `#0A0A0A` y `#BCD86C`. Los bordes y separadores usan
+  negro con opacidad.
 
-## Actualizaciones automáticas
+#### Marca y PWA
 
-La PWA usa `registerType: 'autoUpdate'`: cuando se publica una versión nueva, el
-service worker se activa al instante (`skipWaiting` + `clientsClaim`) y la página
-se recarga sola. `cleanupOutdatedCaches` elimina los precaches viejos.
+- `scripts/monochrome-logo.mts` convierte `public/logo-eco-master.png` en
+  `public/logo-eco-master-bw.png`.
+- `public/logo-eco-master-trimmed.png` y `logo-eco-master-bw-trimmed.png` son las
+  versiones recortadas usadas por la interfaz.
+- `scripts/pwa-icons.mts` genera los iconos con fondo `#0A0A0A`.
+- `scripts/pwa-splash.mts` genera los splash de iOS/iPadOS (18 dispositivos × 2
+  orientaciones) con fondo `#0A0A0A` y reescribe los `<link>` de `index.html`.
+  Quedan fuera del precache (`globIgnores: ['splash/**']`).
+- `pnpm --filter @tools/web pwa:assets` regenera logo B/N, iconos y splash.
 
-`src/main.tsx` fuerza la comprobación de versión (`registration.update()`):
+Actualizaciones: `registerType: 'autoUpdate'` activa el service worker nuevo al
+instante (`skipWaiting` + `clientsClaim`). `src/main.tsx` fuerza
+`registration.update()` al arrancar, al volver a la app
+(`visibilitychange`/`focus`) y cada 30 minutos. Cloudflare sirve `sw.js` con
+`Cache-Control: public, max-age=0, must-revalidate`, así que el navegador
+siempre revalida.
 
-- al arrancar, cuando se registra el service worker;
-- al volver a la app (`visibilitychange` / `focus`), clave en móvil porque la
-  PWA se reanuda desde segundo plano sin recargar;
-- cada 30 minutos mientras la app sigue abierta.
+## Flujo de invitación
 
-Los usuarios reciben el cambio cuando se **despliega** la nueva versión:
-
-```bash
-pnpm build
-pnpm --filter @tools/api deploy
-```
-
-Cloudflare sirve `sw.js` con `Cache-Control: public, max-age=0, must-revalidate`,
-así que el navegador siempre revalida el service worker y no se queda con uno
-viejo. Para desplegar en cada push, conecta el repo a Cloudflare Workers Builds.
-
-En iOS, si la app estaba suspendida, la actualización llega al volver a abrirla;
-en Android/Chrome, al abrirla o en la siguiente comprobación periódica.
+1. Un administrador entra en `/admin/usuarios` o `/admin/aliados`.
+2. Genera una invitación para un correo y un aliado.
+3. La API devuelve un enlace con un token de un solo uso (se guarda hasheado en
+   D1, vence a los 7 días y puede revocarse).
+4. El administrador comparte el enlace por WhatsApp.
+5. La persona define su nombre y contraseña en `/invitacion/:token`.
+6. La cuenta queda asociada al aliado y solo puede ver sus datos.
 
 ## Nota (Windows)
 
