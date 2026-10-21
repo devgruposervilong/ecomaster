@@ -227,27 +227,27 @@ export function getInstallGuide(info: DeviceInfo): InstallGuide {
 export function getBannerCopy(info: DeviceInfo): { title: string; subtitle: string } {
   if (info.isInAppBrowser) {
     return {
-      title: 'Abre Ecomaster en tu navegador',
+      title: 'Abre Eco Master en tu navegador',
       subtitle: 'Desde aquí no se puede instalar. Te indicamos cómo abrirla.',
     }
   }
 
   if (info.device === 'ios') {
     return {
-      title: 'Instala Ecomaster',
+      title: 'Instala Eco Master',
       subtitle: 'Añádela a tu pantalla de inicio y úsala como una app.',
     }
   }
 
   if (info.device === 'android') {
     return {
-      title: 'Instala Ecomaster',
+      title: 'Instala Eco Master',
       subtitle: 'Acceso directo desde tu inicio y disponible sin conexión.',
     }
   }
 
   return {
-    title: 'Instala Ecomaster en tu equipo',
+    title: 'Instala Eco Master en tu equipo',
     subtitle: 'Ábrela como una app, sin navegador y con acceso directo.',
   }
 }

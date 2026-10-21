@@ -1,12 +1,13 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { newId } from '../../lib/ids'
 import { partners } from './partners'
 import { user } from './auth.generated'
 
 export const invites = sqliteTable(
   'invites',
   {
-    id: text('id').primaryKey(),
+    id: text('id').primaryKey().$defaultFn(newId),
     tokenHash: text('token_hash').notNull().unique(),
     email: text('email').notNull(),
     partnerId: text('partner_id')

@@ -14,6 +14,7 @@ La primera fase implementa:
 - Roles `admin`, `partner_admin` y `partner_operator`.
 - Aislamiento de datos por aliado.
 - Dashboard, usuarios, aliados y ajustes.
+- IDs CUID2 (`@paralleldrive/cuid2`) para los registros nuevos.
 - PWA instalable, sin caché de respuestas `/api/*`.
 
 Ventas, catálogo, inventario, finanzas, reportes y tienda online aparecen como
@@ -68,19 +69,33 @@ Desarrollo local (`apps/api/.dev.vars`, no se commitea):
 - `BETTER_AUTH_SECRET`: secreto largo y aleatorio.
 - `SETUP_TOKEN`: token de un solo uso para `/setup`.
 
-La URL pública se configura en `apps/api/cloudflare.config.ts`. Por defecto es
-`http://localhost:5173`; en producción exporta `APP_URL` (y opcionalmente
-`BETTER_AUTH_URL`) antes de construir/desplegar. En PowerShell:
+`cloudflare.config.ts` usa `http://localhost:5173` para `APP_URL` y
+`BETTER_AUTH_URL` en desarrollo, de modo que Vite sirve el frontend y hace proxy
+de `/api` al Worker local.
+
+Para producción, `pnpm --filter @tools/api run deploy` ejecuta
+`apps/api/scripts/deploy.mts`. Ese script publica el Worker en el subdominio
+gratuito de Cloudflare y configura automáticamente la URL pública:
+
+```text
+https://tools-api.devgruposervilong.workers.dev
+```
+
+El primer acceso a producción se hace en `/setup` usando el `SETUP_TOKEN` del
+Worker. Cuando ya existe un administrador, `/setup` queda deshabilitado.
+
+Cuando exista un dominio propio, exporta `APP_URL` (y opcionalmente
+`BETTER_AUTH_URL`) antes de desplegar. En PowerShell:
 
 ```powershell
 $env:APP_URL = "https://backoffice.ecomaster.com"
-pnpm --filter @tools/api deploy
+pnpm --filter @tools/api run deploy
 ```
 
 En macOS/Linux:
 
 ```bash
-APP_URL=https://backoffice.ecomaster.com pnpm --filter @tools/api deploy
+APP_URL=https://backoffice.ecomaster.com pnpm --filter @tools/api run deploy
 ```
 
 Los secretos de producción deben cargarse con el CLI de Cloudflare (`cf secret
@@ -102,7 +117,7 @@ CLI: **`cf`** (Cloudflare CLI, beta). Config tipada en `cloudflare.config.ts`.
 
 - `pnpm --filter @tools/api dev` → `cf dev` en `http://localhost:8787`
 - `pnpm --filter @tools/api build` → `cf build` (salida en `.cloudflare/`)
-- `pnpm --filter @tools/api deploy` → `cf deploy`
+- `pnpm --filter @tools/api run deploy` → `scripts/deploy.mts` → `cf deploy`
 - `pnpm --filter @tools/api db:generate` → genera migraciones con Drizzle Kit
 - `pnpm --filter @tools/api db:local` → aplica migraciones a D1 local
 - `pnpm --filter @tools/api db:remote` → aplica migraciones a D1 remota

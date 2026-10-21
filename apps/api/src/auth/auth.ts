@@ -4,6 +4,7 @@ import { admin } from 'better-auth/plugins'
 import type { AppEnv } from '../env'
 import { createDb } from '../db'
 import * as schema from '../db/schema'
+import { newId } from '../lib/ids'
 
 export function createAuth(env: AppEnv['Bindings']) {
   const db = createDb(env.DB)
@@ -46,7 +47,7 @@ export function createAuth(env: AppEnv['Bindings']) {
     },
     advanced: {
       database: {
-        generateId: () => crypto.randomUUID(),
+        generateId: () => newId(),
       },
     },
     rateLimit: {

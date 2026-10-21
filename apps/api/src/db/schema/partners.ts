@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { newId } from '../../lib/ids'
 
 export const partners = sqliteTable(
   'partners',
   {
-    id: text('id').primaryKey(),
+    id: text('id').primaryKey().$defaultFn(newId),
     name: text('name').notNull(),
     slug: text('slug').notNull().unique(),
     type: text('type', { enum: ['permanente', 'bazar'] }).notNull(),

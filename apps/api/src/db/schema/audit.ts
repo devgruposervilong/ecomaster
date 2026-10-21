@@ -1,12 +1,13 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { newId } from '../../lib/ids'
 import { partners } from './partners'
 import { user } from './auth.generated'
 
 export const auditLogs = sqliteTable(
   'audit_logs',
   {
-    id: text('id').primaryKey(),
+    id: text('id').primaryKey().$defaultFn(newId),
     actorId: text('actor_id').references(() => user.id, { onDelete: 'set null' }),
     partnerId: text('partner_id').references(() => partners.id, { onDelete: 'set null' }),
     action: text('action').notNull(),
