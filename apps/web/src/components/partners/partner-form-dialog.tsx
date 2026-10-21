@@ -41,6 +41,8 @@ export function PartnerFormDialog({
   const form = useForm({
     defaultValues: {
       name: partner?.name ?? '',
+      alias: partner?.alias ?? '',
+      rif: partner?.rif ?? '',
       type: (partner?.type ?? 'permanente') as 'permanente' | 'bazar',
       currency: (partner?.currency ?? 'USD') as 'USD' | 'EUR' | 'VES',
       status: (partner?.status ?? 'active') as 'active' | 'inactive',
@@ -59,6 +61,8 @@ export function PartnerFormDialog({
             method: 'PATCH',
             body: jsonBody({
               name: value.name.trim(),
+              alias: value.alias.trim(),
+              rif: value.rif.trim().toUpperCase(),
               type: value.type,
               currency: value.currency,
               status: value.status,
@@ -74,6 +78,8 @@ export function PartnerFormDialog({
             method: 'POST',
             body: jsonBody({
               name: value.name.trim(),
+              alias: value.alias.trim(),
+              rif: value.rif.trim().toUpperCase(),
               type: value.type,
               currency: value.currency,
               profitWarehouseCode: value.profitWarehouseCode.trim(),
@@ -104,6 +110,8 @@ export function PartnerFormDialog({
     setError(null)
     form.reset({
       name: partner?.name ?? '',
+      alias: partner?.alias ?? '',
+      rif: partner?.rif ?? '',
       type: (partner?.type ?? 'permanente') as 'permanente' | 'bazar',
       currency: (partner?.currency ?? 'USD') as 'USD' | 'EUR' | 'VES',
       status: (partner?.status ?? 'active') as 'active' | 'inactive',
@@ -128,8 +136,8 @@ export function PartnerFormDialog({
           </div>
           <DialogTitle>{isEditing ? 'Editar aliado' : 'Nuevo aliado'}</DialogTitle>
           <DialogDescription>
-            Define la moneda base, el tipo de operación y los datos de contacto. Estos datos se
-            usarán en ventas, inventario y finanzas.
+            Define el nombre, alias y RIF del aliado, además de su moneda base y datos de contacto.
+            Estos datos se usarán en ventas, inventario y finanzas.
           </DialogDescription>
         </DialogHeader>
 
@@ -159,6 +167,47 @@ export function PartnerFormDialog({
               </div>
             )}
           />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <form.Field
+              name="alias"
+              children={(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>Alias comercial</Label>
+                  <Input
+                    id={field.name}
+                    name={field.name}
+                    placeholder="Ej. Floris"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    maxLength={60}
+                    className="h-11 rounded-xl border-black/15"
+                  />
+                </div>
+              )}
+            />
+
+            <form.Field
+              name="rif"
+              children={(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>RIF</Label>
+                  <Input
+                    id={field.name}
+                    name={field.name}
+                    placeholder="J-12345678-9"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value.toUpperCase())}
+                    maxLength={20}
+                    autoCapitalize="characters"
+                    className="h-11 rounded-xl border-black/15"
+                  />
+                </div>
+              )}
+            />
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <form.Field

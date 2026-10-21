@@ -7,6 +7,8 @@ export const partners = sqliteTable(
   {
     id: text('id').primaryKey().$defaultFn(newId),
     name: text('name').notNull(),
+    alias: text('alias'),
+    rif: text('rif'),
     slug: text('slug').notNull().unique(),
     type: text('type', { enum: ['permanente', 'bazar'] }).notNull(),
     currency: text('currency', { enum: ['USD', 'EUR', 'VES'] }).notNull(),

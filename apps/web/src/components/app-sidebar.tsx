@@ -182,7 +182,7 @@ export function AppSidebar({ me }: { me: Me }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
 
   return (
-    <aside className="fixed bottom-4 left-4 top-4 z-30 hidden w-[264px] overflow-hidden rounded-[30px] border border-black/10 bg-white shadow-[0_24px_70px_-30px_rgba(10,10,10,0.35)] md:flex">
+    <aside className="fixed bottom-4 left-4 top-4 z-30 hidden w-[264px] overflow-hidden rounded-[30px] border border-black/10 bg-white shadow-[0_18px_50px_-28px_rgba(10,10,10,0.22)] md:flex">
       <SidebarBody me={me} pathname={pathname} />
     </aside>
   )

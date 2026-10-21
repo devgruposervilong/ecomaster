@@ -23,6 +23,10 @@ function nullable(value: string | undefined | null) {
   return trimmed ? trimmed : null
 }
 
+function normalizeRif(value: string | undefined | null) {
+  return nullable(value)?.toUpperCase() ?? null
+}
+
 function serializePartner(row: typeof partners.$inferSelect & { userCount: number }): Partner {
   return {
     ...row,
@@ -77,6 +81,8 @@ partnerRoutes.get('/', queryParams(listPartnersQuerySchema), async (c) => {
     conditions.push(
       or(
         like(partners.name, `%${search}%`),
+        like(partners.alias, `%${search}%`),
+        like(partners.rif, `%${search}%`),
         like(partners.slug, `%${search}%`),
         like(partners.contactEmail, `%${search}%`),
       ),
@@ -141,6 +147,8 @@ partnerRoutes.post('/', jsonBody(createPartnerSchema), async (c) => {
   await db.insert(partners).values({
     id,
     name: body.name,
+    alias: nullable(body.alias),
+    rif: normalizeRif(body.rif),
     slug,
     type: body.type,
     currency: body.currency,
@@ -185,6 +193,8 @@ partnerRoutes.patch('/:id', jsonBody(updatePartnerSchema), async (c) => {
   }
 
   if (body.name !== undefined) patch.name = body.name
+  if (body.alias !== undefined) patch.alias = nullable(body.alias)
+  if (body.rif !== undefined) patch.rif = normalizeRif(body.rif)
   if (body.type !== undefined) patch.type = body.type
   if (body.currency !== undefined) patch.currency = body.currency
   if (body.status !== undefined) patch.status = body.status

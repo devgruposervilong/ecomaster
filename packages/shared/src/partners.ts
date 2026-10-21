@@ -9,6 +9,18 @@ export const partnerContactSchema = z.object({
 
 export const createPartnerSchema = z.object({
   name: z.string().trim().min(2, 'El nombre es obligatorio').max(120),
+  alias: z
+    .string()
+    .trim()
+    .max(60, 'El alias no puede superar 60 caracteres')
+    .optional()
+    .or(z.literal('')),
+  rif: z
+    .string()
+    .trim()
+    .max(20, 'El RIF no puede superar 20 caracteres')
+    .optional()
+    .or(z.literal('')),
   type: partnerTypeSchema,
   currency: currencySchema,
   profitWarehouseCode: z.string().trim().max(60).optional().or(z.literal('')),
@@ -34,6 +46,8 @@ export type UpdatePartnerInput = z.infer<typeof updatePartnerSchema>
 export type Partner = {
   id: string
   name: string
+  alias: string | null
+  rif: string | null
   slug: string
   type: 'permanente' | 'bazar'
   currency: 'USD' | 'EUR' | 'VES'
