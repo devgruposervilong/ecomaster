@@ -1,5 +1,5 @@
 {
-  "name": "tools",
+  "name": "ecomaster",
   "private": true,
   "packageManager": "pnpm@11.12.0",
   "scripts": {

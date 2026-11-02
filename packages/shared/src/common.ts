@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const ROLES = ['admin', 'partner_admin', 'partner_operator'] as const
+export const ROLES = ['admin', 'partner_admin', 'collaborator', 'partner_collaborator'] as const
 export type Role = (typeof ROLES)[number]
 
 export const PARTNER_TYPES = ['permanente', 'bazar'] as const
@@ -22,7 +22,7 @@ export const currencySchema = z.enum(CURRENCIES)
 
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(500).default(20),
 })
 
 export type Pagination = z.infer<typeof paginationSchema>
@@ -48,7 +48,8 @@ export type ApiErrorBody = {
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Administrador',
   partner_admin: 'Admin. del aliado',
-  partner_operator: 'Operador',
+  collaborator: 'Colaborador',
+  partner_collaborator: 'Colaborador del aliado',
 }
 
 export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {

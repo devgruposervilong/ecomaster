@@ -1,4 +1,4 @@
-import { bindings, defineConfig } from 'cf/config'
+import { bindings, defineConfig, triggers } from 'cf/config'
 
 const envVars = (
   globalThis as {
@@ -12,7 +12,7 @@ const appEnv = envVars?.APP_ENV ?? 'development'
 
 export default defineConfig({
   worker: {
-    name: 'tools-api',
+    name: 'ecomaster-api',
     compatibilityDate: '2026-09-01',
     compatibilityFlags: ['nodejs_compat'],
     entrypoint: 'src/index.ts',
@@ -23,6 +23,13 @@ export default defineConfig({
     observability: {
       enabled: true,
     },
+    triggers: [
+      // 9:30 pm, 10:00 pm y 11:30 pm en America/Caracas (UTC-4).
+      // Cloudflare evalúa los cron en UTC, por eso caen al día siguiente.
+      triggers.scheduled({ schedule: '30 1 * * *' }),
+      triggers.scheduled({ schedule: '0 2 * * *' }),
+      triggers.scheduled({ schedule: '30 3 * * *' }),
+    ],
     env: {
       APP_ENV: bindings.text(appEnv),
       APP_URL: bindings.text(appUrl),
@@ -30,8 +37,8 @@ export default defineConfig({
       BETTER_AUTH_SECRET: bindings.secret(),
       SETUP_TOKEN: bindings.secret(),
       DB: bindings.d1({
-        name: 'tools-db',
-        id: '584af39d-eb80-486e-8b85-abe9e46b530d',
+        name: 'ecomaster-db',
+        id: '0352d618-75f0-4803-9531-e27ce0fb0f59',
       }),
     },
   },

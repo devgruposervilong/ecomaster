@@ -33,11 +33,17 @@ export function createAuth(env: AppEnv['Bindings']) {
           input: false,
           returned: true,
         },
+        moduleAccess: {
+          type: 'string',
+          required: false,
+          input: false,
+          returned: true,
+        },
       },
     },
     plugins: [
       admin({
-        defaultRole: 'partner_operator',
+        defaultRole: 'partner_collaborator',
         adminRoles: ['admin'],
       }),
     ],

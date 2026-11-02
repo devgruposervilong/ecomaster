@@ -10,10 +10,11 @@ export const invites = sqliteTable(
     id: text('id').primaryKey().$defaultFn(newId),
     tokenHash: text('token_hash').notNull().unique(),
     email: text('email').notNull(),
-    partnerId: text('partner_id')
-      .notNull()
-      .references(() => partners.id, { onDelete: 'cascade' }),
-    role: text('role', { enum: ['admin', 'partner_admin', 'partner_operator'] }).notNull(),
+    partnerId: text('partner_id').references(() => partners.id, { onDelete: 'cascade' }),
+    role: text('role', {
+      enum: ['admin', 'partner_admin', 'collaborator', 'partner_collaborator'],
+    }).notNull(),
+    moduleAccess: text('module_access').default('[]').notNull(),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     usedAt: integer('used_at', { mode: 'timestamp_ms' }),
     revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),

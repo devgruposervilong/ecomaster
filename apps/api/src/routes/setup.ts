@@ -1,6 +1,6 @@
 import { count, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { setupSchema } from '@tools/shared'
+import { setupSchema } from '@ecomaster/shared'
 import { createAuth } from '../auth/auth'
 import { user } from '../db/schema'
 import type { AppEnv } from '../env'

@@ -2,11 +2,17 @@ import { and, count, desc, eq, like, or, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
+  isCollaboratorRole,
+  isGlobalRole,
+  isPartnerRole,
   listUsersQuerySchema,
+  modulesForRole,
+  parseModules,
   resetPasswordSchema,
   updateUserSchema,
+  type Role,
   type UserRow,
-} from '@tools/shared'
+} from '@ecomaster/shared'
 import { createAuth } from '../auth/auth'
 import { partners, session as sessionTable, user } from '../db/schema'
 import type { AppEnv } from '../env'
@@ -34,18 +40,22 @@ function serializeUser(row: {
   role: string | null
   partnerId: string | null
   partnerName: string | null
+  moduleAccess: string | null
   banned: boolean | null
   emailVerified: boolean
   lastLoginAt: number | null
   createdAt: Date
 }): UserRow {
+  const role = (row.role ?? 'partner_collaborator') as Role
+
   return {
     id: row.id,
     name: row.name,
     email: row.email,
-    role: (row.role ?? 'partner_operator') as UserRow['role'],
+    role,
     partnerId: row.partnerId,
     partnerName: row.partnerName,
+    modules: modulesForRole(role, row.moduleAccess),
     status: row.banned ? 'suspended' : 'active',
     emailVerified: row.emailVerified,
     banned: Boolean(row.banned),
@@ -62,6 +72,7 @@ function userSelection() {
     role: user.role,
     partnerId: user.partnerId,
     partnerName: partners.name,
+    moduleAccess: user.moduleAccess,
     banned: user.banned,
     emailVerified: user.emailVerified,
     lastLoginAt: sql<number | null>`(
@@ -145,6 +156,7 @@ userRoutes.patch('/:id', jsonBody(updateUserSchema), async (c) => {
       name: user.name,
       role: user.role,
       partnerId: user.partnerId,
+      moduleAccess: user.moduleAccess,
     })
     .from(user)
     .where(eq(user.id, id))
@@ -152,11 +164,14 @@ userRoutes.patch('/:id', jsonBody(updateUserSchema), async (c) => {
 
   if (!existing) throw notFound('No encontramos este usuario.')
 
-  const nextRole = body.role ?? existing.role ?? 'partner_operator'
-  const nextPartnerId =
-    nextRole === 'admin' ? null : body.partnerId !== undefined ? body.partnerId : existing.partnerId
+  const nextRole = (body.role ?? existing.role ?? 'partner_collaborator') as Role
+  const nextPartnerId = isGlobalRole(nextRole)
+    ? null
+    : body.partnerId !== undefined
+      ? body.partnerId
+      : existing.partnerId
 
-  if (nextRole !== 'admin' && !nextPartnerId) {
+  if (isPartnerRole(nextRole) && !nextPartnerId) {
     throw badRequest('Los usuarios de aliados deben tener un aliado asignado.')
   }
 
@@ -184,17 +199,27 @@ userRoutes.patch('/:id', jsonBody(updateUserSchema), async (c) => {
     }
   }
 
+  const nextModules = isCollaboratorRole(nextRole)
+    ? (body.modules ?? parseModules(existing.moduleAccess))
+    : []
+  const nextModuleAccess = JSON.stringify(nextModules)
+
   await db
     .update(user)
     .set({
       name: body.name ?? existing.name,
       role: nextRole,
       partnerId: nextPartnerId,
+      moduleAccess: nextModuleAccess,
       updatedAt: new Date(),
     })
     .where(eq(user.id, id))
 
-  if (nextRole !== existing.role || nextPartnerId !== existing.partnerId) {
+  if (
+    nextRole !== existing.role ||
+    nextPartnerId !== existing.partnerId ||
+    nextModuleAccess !== existing.moduleAccess
+  ) {
     await db.delete(sessionTable).where(eq(sessionTable.userId, id))
   }
 
@@ -204,7 +229,7 @@ userRoutes.patch('/:id', jsonBody(updateUserSchema), async (c) => {
     entityId: id,
     partnerId: nextPartnerId,
     description: `Actualizó el usuario ${body.name ?? existing.name}.`,
-    metadata: { role: nextRole, partnerId: nextPartnerId },
+    metadata: { role: nextRole, partnerId: nextPartnerId, modules: nextModules },
   })
 
   return c.json({ data: await findUser(db, id) })

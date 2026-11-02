@@ -11,14 +11,36 @@ La primera fase implementa:
 - Autenticación con Better Auth y D1.
 - Setup inicial protegido por `SETUP_TOKEN`.
 - Invitaciones de un solo uso compartibles por WhatsApp.
-- Roles `admin`, `partner_admin` y `partner_operator`.
+- Roles `admin`, `partner_admin`, `collaborator` y `partner_collaborator`.
 - Aislamiento de datos por aliado.
 - Dashboard, usuarios, aliados y ajustes.
+- Catálogo por aliado con productos, precios, categorías, códigos Profit e
+  historial de cambios de precio.
+- Permisos por módulo para los roles colaboradores, configurables por usuario
+  desde Usuarios.
 - IDs CUID2 (`@paralleldrive/cuid2`) para los registros nuevos.
 - PWA instalable, sin caché de respuestas `/api/*`.
 
-Ventas, catálogo, inventario, finanzas, reportes y tienda online aparecen como
-módulos "En construcción" hasta la siguiente fase.
+Ventas, inventario, finanzas, reportes y tienda online aparecen como módulos
+"En construcción" hasta la siguiente fase. El catálogo lo administra el rol
+global `admin`; los demás roles tienen acceso de solo lectura al catálogo que
+les corresponde. `admin` y `partner_admin` tienen acceso total a los módulos;
+los colaboradores solo a los módulos habilitados por el administrador.
+
+### Roles y módulos
+
+| Rol                   | Alcance              | Acceso                                                       |
+| --------------------- | -------------------- | ------------------------------------------------------------ |
+| `admin`               | Global               | Todos los módulos; gestiona aliados, usuarios e invitaciones |
+| `partner_admin`       | Su aliado            | Todos los módulos de su aliado                               |
+| `collaborator`        | Global               | Solo los módulos asignados a su usuario                      |
+| `partner_collaborator` | Su aliado            | Solo los módulos asignados a su usuario                      |
+
+Los módulos configurables son `dashboard`, `sales`, `catalog`, `inventory`,
+`finance`, `reports` y `store`. `Ajustes` está disponible para cualquier usuario
+autenticado y los módulos de administración no se pueden asignar a un
+colaborador. La asignación se guarda por usuario (y por invitación mientras está
+pendiente), no por rol.
 
 ## Estructura
 
@@ -30,7 +52,7 @@ packages/
   shared/    Contratos Zod y tipos compartidos entre API y web
 ```
 
-En producción el Worker `tools-api` sirve el frontend (PWA) y la API
+En producción el Worker `ecomaster-api` sirve el frontend (PWA) y la API
 (`/api/*`) en el mismo origen.
 
 ## Puesta en marcha
@@ -44,11 +66,11 @@ pnpm install
 cp apps/api/.dev.vars.example apps/api/.dev.vars
 
 # Aplica las migraciones a la D1 local que usa cf dev.
-pnpm --filter @tools/api db:local
+pnpm --filter @ecomaster/api db:local
 
 # En dos terminales:
-pnpm --filter @tools/api dev   # http://localhost:8787
-pnpm --filter @tools/web dev   # http://localhost:5173
+pnpm --filter @ecomaster/api dev   # http://localhost:8787
+pnpm --filter @ecomaster/web dev   # http://localhost:5173
 ```
 
 Abre <http://localhost:5173/setup> y usa el `SETUP_TOKEN` de `.dev.vars` para
@@ -59,7 +81,7 @@ Para reiniciar la base local (borra usuarios, aliados e invitaciones de prueba):
 
 ```powershell
 Remove-Item -Recurse -Force apps/api/.wrangler/state
-pnpm --filter @tools/api db:local
+pnpm --filter @ecomaster/api db:local
 ```
 
 ### Variables de entorno
@@ -73,12 +95,12 @@ Desarrollo local (`apps/api/.dev.vars`, no se commitea):
 `BETTER_AUTH_URL` en desarrollo, de modo que Vite sirve el frontend y hace proxy
 de `/api` al Worker local.
 
-Para producción, `pnpm --filter @tools/api run deploy` ejecuta
+Para producción, `pnpm --filter @ecomaster/api run deploy` ejecuta
 `apps/api/scripts/deploy.mts`. Ese script publica el Worker en el subdominio
 gratuito de Cloudflare y configura automáticamente la URL pública:
 
 ```text
-https://tools-api.devgruposervilong.workers.dev
+https://ecomaster-api.devgruposervilong.workers.dev
 ```
 
 El primer acceso a producción se hace en `/setup` usando el `SETUP_TOKEN` del
@@ -89,17 +111,17 @@ Cuando exista un dominio propio, exporta `APP_URL` (y opcionalmente
 
 ```powershell
 $env:APP_URL = "https://backoffice.ecomaster.com"
-pnpm --filter @tools/api run deploy
+pnpm --filter @ecomaster/api run deploy
 ```
 
 En macOS/Linux:
 
 ```bash
-APP_URL=https://backoffice.ecomaster.com pnpm --filter @tools/api run deploy
+APP_URL=https://backoffice.ecomaster.com pnpm --filter @ecomaster/api run deploy
 ```
 
-Los secretos de producción deben cargarse con el CLI de Cloudflare (`cf secret
-put`) o desde el panel del Worker.
+Los secretos de producción deben cargarse desde el panel del Worker
+(**Settings → Variables and Secrets**) o con `cf workers secrets update`.
 
 ## Comandos
 
@@ -115,12 +137,12 @@ pnpm format         # Prettier
 
 CLI: **`cf`** (Cloudflare CLI, beta). Config tipada en `cloudflare.config.ts`.
 
-- `pnpm --filter @tools/api dev` → `cf dev` en `http://localhost:8787`
-- `pnpm --filter @tools/api build` → `cf build` (salida en `.cloudflare/`)
-- `pnpm --filter @tools/api run deploy` → `scripts/deploy.mts` → `cf deploy`
-- `pnpm --filter @tools/api db:generate` → genera migraciones con Drizzle Kit
-- `pnpm --filter @tools/api db:local` → aplica migraciones a D1 local
-- `pnpm --filter @tools/api db:remote` → aplica migraciones a D1 remota
+- `pnpm --filter @ecomaster/api dev` → `cf dev` en `http://localhost:8787`
+- `pnpm --filter @ecomaster/api build` → `cf build` (salida en `.cloudflare/`)
+- `pnpm --filter @ecomaster/api run deploy` → `scripts/deploy.mts` → `cf deploy`
+- `pnpm --filter @ecomaster/api db:generate` → genera migraciones con Drizzle Kit
+- `pnpm --filter @ecomaster/api db:local` → aplica migraciones a D1 local
+- `pnpm --filter @ecomaster/api db:remote` → aplica migraciones a D1 remota
 
 ORM: **Drizzle** (`drizzle-orm/d1`). Esquema en `src/db/schema/`, migraciones en
 `migrations/`.
@@ -160,7 +182,7 @@ cuentas solo se crean por setup o por invitación.
 - `scripts/pwa-splash.mts` genera los splash de iOS/iPadOS (18 dispositivos × 2
   orientaciones) con fondo `#0A0A0A` y reescribe los `<link>` de `index.html`.
   Quedan fuera del precache (`globIgnores: ['splash/**']`).
-- `pnpm --filter @tools/web pwa:assets` regenera logo B/N, iconos y splash.
+- `pnpm --filter @ecomaster/web pwa:assets` regenera logo B/N, iconos y splash.
 
 Actualizaciones: `registerType: 'autoUpdate'` activa el service worker nuevo al
 instante (`skipWaiting` + `clientsClaim`). `src/main.tsx` fuerza

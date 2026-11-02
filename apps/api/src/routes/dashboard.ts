@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gt, isNull } from 'drizzle-orm'
 import { Hono } from 'hono'
-import type { DashboardSummary } from '@tools/shared'
+import type { DashboardSummary } from '@ecomaster/shared'
 import { auditLogs, invites, partners, user } from '../db/schema'
 import type { AppEnv } from '../env'
 import { lastNDates, todayLabel } from '../lib/dates'
@@ -11,44 +11,25 @@ dashboardRoutes.get('/summary', async (c) => {
   const db = c.get('db')
   const session = c.get('session')!
   const isAdmin = session.user.role === 'admin'
-  const partnerId = session.user.partnerId
   const now = new Date()
 
-  const [activePartnersRow] = isAdmin
-    ? await db.select({ total: count() }).from(partners).where(eq(partners.status, 'active'))
-    : await db
+  // El wrapper aplica el filtro del aliado automáticamente. Para admin no hay
+  // filtro y estas mismas queries devuelven el agregado global.
+  const [activePartnersRow] = await db
+    .select({ total: count() })
+    .from(partners)
+    .where(eq(partners.status, 'active'))
+
+  const [activeUsersRow] = isAdmin
+    ? await db.select({ total: count() }).from(user).where(eq(user.banned, false))
+    : [{ total: 0 }]
+
+  const [pendingInvitesRow] = isAdmin
+    ? await db
         .select({ total: count() })
-        .from(partners)
-        .where(
-          and(
-            eq(partners.status, 'active'),
-            partnerId ? eq(partners.id, partnerId) : eq(partners.id, '__none__'),
-          ),
-        )
-
-  const activeUserWhere = isAdmin
-    ? eq(user.banned, false)
-    : and(
-        eq(user.banned, false),
-        partnerId ? eq(user.partnerId, partnerId) : eq(user.id, '__none__'),
-      )
-
-  const [activeUsersRow] = await db.select({ total: count() }).from(user).where(activeUserWhere)
-
-  const pendingWhere = and(
-    isNull(invites.usedAt),
-    isNull(invites.revokedAt),
-    gt(invites.expiresAt, now),
-    isAdmin ? undefined : partnerId ? eq(invites.partnerId, partnerId) : eq(invites.id, '__none__'),
-  )
-
-  const [pendingInvitesRow] = await db.select({ total: count() }).from(invites).where(pendingWhere)
-
-  const activityWhere = isAdmin
-    ? undefined
-    : partnerId
-      ? eq(auditLogs.partnerId, partnerId)
-      : eq(auditLogs.id, '__none__')
+        .from(invites)
+        .where(and(isNull(invites.usedAt), isNull(invites.revokedAt), gt(invites.expiresAt, now)))
+    : [{ total: 0 }]
 
   const activity = await db
     .select({
@@ -58,7 +39,6 @@ dashboardRoutes.get('/summary', async (c) => {
       createdAt: auditLogs.createdAt,
     })
     .from(auditLogs)
-    .where(activityWhere)
     .orderBy(desc(auditLogs.createdAt))
     .limit(8)
 

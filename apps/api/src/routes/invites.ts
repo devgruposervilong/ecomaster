@@ -4,9 +4,12 @@ import { Hono } from 'hono'
 import {
   acceptInviteSchema,
   createInviteSchema,
+  isCollaboratorRole,
+  isGlobalRole,
   listInvitesQuerySchema,
+  modulesForRole,
   type InviteRow,
-} from '@tools/shared'
+} from '@ecomaster/shared'
 import { createAuth } from '../auth/auth'
 import { invites, partners, user } from '../db/schema'
 import type { AppEnv } from '../env'
@@ -23,9 +26,10 @@ export const publicInviteRoutes = new Hono<AppEnv>()
 type InviteWithPartner = {
   id: string
   email: string
-  partnerId: string
-  partnerName: string
+  partnerId: string | null
+  partnerName: string | null
   role: InviteRow['role']
+  moduleAccess: string | null
   expiresAt: Date
   usedAt: Date | null
   revokedAt: Date | null
@@ -47,6 +51,7 @@ function serializeInvite(invite: InviteWithPartner): InviteRow {
     partnerId: invite.partnerId,
     partnerName: invite.partnerName,
     role: invite.role,
+    modules: modulesForRole(invite.role, invite.moduleAccess),
     status: inviteStatus(invite),
     expiresAt: invite.expiresAt.toISOString(),
     usedAt: invite.usedAt?.toISOString() ?? null,
@@ -98,6 +103,7 @@ adminInviteRoutes.get('/', queryParams(listInvitesQuerySchema), async (c) => {
       partnerId: invites.partnerId,
       partnerName: partners.name,
       role: invites.role,
+      moduleAccess: invites.moduleAccess,
       expiresAt: invites.expiresAt,
       usedAt: invites.usedAt,
       revokedAt: invites.revokedAt,
@@ -105,7 +111,7 @@ adminInviteRoutes.get('/', queryParams(listInvitesQuerySchema), async (c) => {
       createdByName: creator.name,
     })
     .from(invites)
-    .innerJoin(partners, eq(partners.id, invites.partnerId))
+    .leftJoin(partners, eq(partners.id, invites.partnerId))
     .leftJoin(creator, eq(creator.id, invites.createdBy))
     .where(where)
     .orderBy(desc(invites.createdAt))
@@ -131,19 +137,32 @@ adminInviteRoutes.post('/', jsonBody(createInviteSchema), async (c) => {
   const session = c.get('session')!
 
   if (body.role === 'admin') {
-    throw badRequest('Las invitaciones son para usuarios de aliados.')
+    throw badRequest('Las invitaciones no pueden crear administradores globales.')
   }
 
   const email = body.email.toLowerCase()
-  const [partner] = await db
-    .select({ id: partners.id, name: partners.name, status: partners.status })
-    .from(partners)
-    .where(eq(partners.id, body.partnerId))
-    .limit(1)
+  const globalRole = isGlobalRole(body.role)
+  const partnerId: string | null = globalRole ? null : (body.partnerId ?? null)
 
-  if (!partner) throw badRequest('El aliado seleccionado no existe.')
-  if (partner.status !== 'active') {
-    throw badRequest('El aliado está inactivo. Actívalo antes de invitar usuarios.')
+  if (!globalRole && !partnerId) {
+    throw badRequest('Selecciona el aliado al que pertenece el usuario.')
+  }
+
+  let partner: { id: string; name: string; status: string } | null = null
+
+  if (partnerId) {
+    const [row] = await db
+      .select({ id: partners.id, name: partners.name, status: partners.status })
+      .from(partners)
+      .where(eq(partners.id, partnerId))
+      .limit(1)
+
+    if (!row) throw badRequest('El aliado seleccionado no existe.')
+    if (row.status !== 'active') {
+      throw badRequest('El aliado está inactivo. Actívalo antes de invitar usuarios.')
+    }
+
+    partner = row
   }
 
   const [existingUser] = await db
@@ -165,13 +184,16 @@ adminInviteRoutes.post('/', jsonBody(createInviteSchema), async (c) => {
   const tokenHash = await hashToken(token)
   const id = newId()
   const expiresAt = addDays(new Date(), 7)
+  const modules = isCollaboratorRole(body.role) ? body.modules : []
+  const moduleAccess = JSON.stringify(modules)
 
   await db.insert(invites).values({
     id,
     tokenHash,
     email,
-    partnerId: body.partnerId,
+    partnerId,
     role: body.role,
+    moduleAccess,
     expiresAt,
     createdBy: session.user.id,
   })
@@ -180,17 +202,18 @@ adminInviteRoutes.post('/', jsonBody(createInviteSchema), async (c) => {
     action: 'invites.create',
     entityType: 'invite',
     entityId: id,
-    partnerId: body.partnerId,
-    description: `Invitó a ${email} como ${body.role}.`,
-    metadata: { email, role: body.role, expiresAt: expiresAt.toISOString() },
+    partnerId,
+    description: `Invitó a ${email} como ${body.role}${partner ? ` de ${partner.name}` : ' global'}.`,
+    metadata: { email, role: body.role, partnerId, modules, expiresAt: expiresAt.toISOString() },
   })
 
   const invite: InviteWithPartner = {
     id,
     email,
-    partnerId: body.partnerId,
-    partnerName: partner.name,
+    partnerId,
+    partnerName: partner?.name ?? null,
     role: body.role,
+    moduleAccess,
     expiresAt,
     usedAt: null,
     revokedAt: null,
@@ -249,6 +272,7 @@ publicInviteRoutes.get('/:token', async (c) => {
     .select({
       email: invites.email,
       role: invites.role,
+      moduleAccess: invites.moduleAccess,
       expiresAt: invites.expiresAt,
       usedAt: invites.usedAt,
       revokedAt: invites.revokedAt,
@@ -256,7 +280,7 @@ publicInviteRoutes.get('/:token', async (c) => {
       partnerStatus: partners.status,
     })
     .from(invites)
-    .innerJoin(partners, eq(partners.id, invites.partnerId))
+    .leftJoin(partners, eq(partners.id, invites.partnerId))
     .where(eq(invites.tokenHash, tokenHash))
     .limit(1)
 
@@ -264,7 +288,7 @@ publicInviteRoutes.get('/:token', async (c) => {
     throw notFound('La invitación no existe o el enlace es inválido.')
   }
 
-  if (invite.partnerStatus !== 'active') {
+  if (invite.partnerStatus && invite.partnerStatus !== 'active') {
     throw new AppError(
       410,
       'PARTNER_INACTIVE',
@@ -293,6 +317,7 @@ publicInviteRoutes.get('/:token', async (c) => {
       email: invite.email,
       partnerName: invite.partnerName,
       role: invite.role,
+      modules: modulesForRole(invite.role, invite.moduleAccess),
       expiresAt: invite.expiresAt.toISOString(),
     },
   })
@@ -312,13 +337,14 @@ publicInviteRoutes.post('/:token/accept', jsonBody(acceptInviteSchema), async (c
       partnerId: invites.partnerId,
       partnerName: partners.name,
       role: invites.role,
+      moduleAccess: invites.moduleAccess,
       expiresAt: invites.expiresAt,
       usedAt: invites.usedAt,
       revokedAt: invites.revokedAt,
       partnerStatus: partners.status,
     })
     .from(invites)
-    .innerJoin(partners, eq(partners.id, invites.partnerId))
+    .leftJoin(partners, eq(partners.id, invites.partnerId))
     .where(eq(invites.tokenHash, tokenHash))
     .limit(1)
 
@@ -326,7 +352,7 @@ publicInviteRoutes.post('/:token/accept', jsonBody(acceptInviteSchema), async (c
     throw notFound('La invitación no existe o el enlace es inválido.')
   }
 
-  if (invite.partnerStatus !== 'active') {
+  if (invite.partnerStatus && invite.partnerStatus !== 'active') {
     throw new AppError(
       410,
       'PARTNER_INACTIVE',
@@ -391,6 +417,7 @@ publicInviteRoutes.post('/:token/accept', jsonBody(acceptInviteSchema), async (c
       .set({
         role: invite.role,
         partnerId: invite.partnerId,
+        moduleAccess: invite.moduleAccess,
         emailVerified: true,
         updatedAt: new Date(),
       })
@@ -402,8 +429,14 @@ publicInviteRoutes.post('/:token/accept', jsonBody(acceptInviteSchema), async (c
       action: 'invites.accept',
       entityType: 'user',
       entityId: created.user.id,
-      description: `${name} aceptó la invitación y se unió a ${invite.partnerName}.`,
-      metadata: { inviteId: invite.id, role: invite.role },
+      description: invite.partnerName
+        ? `${name} aceptó la invitación y se unió a ${invite.partnerName}.`
+        : `${name} aceptó la invitación como usuario global.`,
+      metadata: {
+        inviteId: invite.id,
+        role: invite.role,
+        modules: modulesForRole(invite.role, invite.moduleAccess),
+      },
     })
 
     const authResponse = await auth.api.signInEmail({
@@ -420,6 +453,7 @@ publicInviteRoutes.post('/:token/accept', jsonBody(acceptInviteSchema), async (c
           role: invite.role,
           partnerId: invite.partnerId,
           partnerName: invite.partnerName,
+          modules: modulesForRole(invite.role, invite.moduleAccess),
         },
       },
     })

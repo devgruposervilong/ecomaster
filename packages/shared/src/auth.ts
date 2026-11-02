@@ -1,11 +1,39 @@
 import { z } from 'zod'
-import { paginationSchema, roleSchema } from './common'
+import { paginationSchema, roleSchema, type Role } from './common'
+import { modulesSchema, type ModuleKey } from './modules'
 
-export const createInviteSchema = z.object({
-  email: z.string().trim().email('Correo inválido').max(160),
-  partnerId: z.string().min(1, 'Selecciona un aliado'),
-  role: roleSchema,
-})
+export const createInviteSchema = z
+  .object({
+    email: z.string().trim().email('Correo inválido').max(160),
+    partnerId: z.string().min(1).nullable().optional(),
+    role: roleSchema,
+    modules: modulesSchema.default([]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.role === 'admin') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['role'],
+        message: 'Las invitaciones no pueden crear administradores globales.',
+      })
+    }
+
+    if (value.role !== 'collaborator' && !value.partnerId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['partnerId'],
+        message: 'Selecciona el aliado al que pertenece el usuario.',
+      })
+    }
+
+    if (value.role === 'collaborator' && value.partnerId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['partnerId'],
+        message: 'El colaborador global no debe tener un aliado asignado.',
+      })
+    }
+  })
 
 export const acceptInviteSchema = z.object({
   name: z.string().trim().min(2, 'Escribe tu nombre').max(120),
@@ -29,6 +57,7 @@ export const updateUserSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   role: roleSchema.optional(),
   partnerId: z.string().min(1).nullable().optional(),
+  modules: modulesSchema.optional(),
 })
 
 export const listUsersQuerySchema = z.object({
@@ -59,9 +88,10 @@ export type UserRow = {
   id: string
   name: string
   email: string
-  role: 'admin' | 'partner_admin' | 'partner_operator'
+  role: Role
   partnerId: string | null
   partnerName: string | null
+  modules: ModuleKey[]
   status: 'active' | 'invited' | 'suspended'
   emailVerified: boolean
   banned: boolean
@@ -72,9 +102,10 @@ export type UserRow = {
 export type InviteRow = {
   id: string
   email: string
-  partnerId: string
-  partnerName: string
-  role: 'admin' | 'partner_admin' | 'partner_operator'
+  partnerId: string | null
+  partnerName: string | null
+  role: Role
+  modules: ModuleKey[]
   status: 'pending' | 'used' | 'expired' | 'revoked'
   expiresAt: string
   usedAt: string | null
@@ -84,7 +115,8 @@ export type InviteRow = {
 
 export type InvitePreview = {
   email: string
-  partnerName: string
-  role: 'admin' | 'partner_admin' | 'partner_operator'
+  partnerName: string | null
+  role: Role
+  modules: ModuleKey[]
   expiresAt: string
 }

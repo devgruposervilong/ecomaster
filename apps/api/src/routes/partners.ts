@@ -6,11 +6,11 @@ import {
   listPartnersQuerySchema,
   updatePartnerSchema,
   type Partner,
-} from '@tools/shared'
-import { partners, session as sessionTable, user } from '../db/schema'
+} from '@ecomaster/shared'
+import { partners, priceLists, session as sessionTable, user } from '../db/schema'
 import type { AppEnv } from '../env'
 import { writeAudit } from '../lib/audit'
-import { notFound } from '../lib/errors'
+import { AppError, badRequest, notFound } from '../lib/errors'
 import { newId, slugify } from '../lib/ids'
 import { jsonBody, queryParams } from '../lib/validation'
 
@@ -27,7 +27,9 @@ function normalizeRif(value: string | undefined | null) {
   return nullable(value)?.toUpperCase() ?? null
 }
 
-function serializePartner(row: typeof partners.$inferSelect & { userCount: number }): Partner {
+function serializePartner(
+  row: typeof partners.$inferSelect & { userCount: number; priceListName: string },
+): Partner {
   return {
     ...row,
     userCount: Number(row.userCount ?? 0),
@@ -36,13 +38,48 @@ function serializePartner(row: typeof partners.$inferSelect & { userCount: numbe
   }
 }
 
+async function findPriceList(db: AppEnv['Variables']['db'], id: string) {
+  const [row] = await db
+    .select({
+      id: priceLists.id,
+      name: priceLists.name,
+      currency: priceLists.currency,
+      status: priceLists.status,
+    })
+    .from(priceLists)
+    .where(eq(priceLists.id, id))
+    .limit(1)
+
+  return row ?? null
+}
+
+function assertPriceListMatches(
+  list: { name: string; currency: string; status: string },
+  currency: string,
+) {
+  if (list.currency !== currency) {
+    throw new AppError(
+      400,
+      'PRICE_LIST_CURRENCY_MISMATCH',
+      `La lista «${list.name}» está en ${list.currency}, pero el aliado está configurado en ${currency}. La moneda del aliado y la de su lista deben coincidir.`,
+      { priceListCurrency: list.currency, partnerCurrency: currency },
+    )
+  }
+
+  if (list.status !== 'active') {
+    throw badRequest(`La lista «${list.name}» está inactiva. Actívala antes de asignarla.`)
+  }
+}
+
 async function findPartner(db: AppEnv['Variables']['db'], id: string) {
   const [row] = await db
     .select({
       ...getTableColumns(partners),
+      priceListName: priceLists.name,
       userCount: sql<number>`count(${user.id})`,
     })
     .from(partners)
+    .innerJoin(priceLists, eq(priceLists.id, partners.priceListId))
     .leftJoin(user, eq(user.partnerId, partners.id))
     .where(eq(partners.id, id))
     .groupBy(partners.id)
@@ -98,9 +135,11 @@ partnerRoutes.get('/', queryParams(listPartnersQuerySchema), async (c) => {
   const rows = await db
     .select({
       ...getTableColumns(partners),
+      priceListName: priceLists.name,
       userCount: sql<number>`count(${user.id})`,
     })
     .from(partners)
+    .innerJoin(priceLists, eq(priceLists.id, partners.priceListId))
     .leftJoin(user, eq(user.partnerId, partners.id))
     .where(where)
     .groupBy(partners.id)
@@ -129,9 +168,12 @@ partnerRoutes.get('/options', async (c) => {
       name: partners.name,
       type: partners.type,
       currency: partners.currency,
+      priceListId: partners.priceListId,
+      priceListName: priceLists.name,
       contactPhone: partners.contactPhone,
     })
     .from(partners)
+    .innerJoin(priceLists, eq(priceLists.id, partners.priceListId))
     .where(eq(partners.status, 'active'))
     .orderBy(partners.name)
 
@@ -143,6 +185,10 @@ partnerRoutes.post('/', jsonBody(createPartnerSchema), async (c) => {
   const db = c.get('db')
   const id = newId()
   const slug = await uniqueSlug(db, body.name)
+  const list = await findPriceList(db, body.priceListId)
+
+  if (!list) throw badRequest('La lista de precios seleccionada no existe.')
+  assertPriceListMatches(list, body.currency)
 
   await db.insert(partners).values({
     id,
@@ -152,6 +198,7 @@ partnerRoutes.post('/', jsonBody(createPartnerSchema), async (c) => {
     slug,
     type: body.type,
     currency: body.currency,
+    priceListId: body.priceListId,
     status: 'active',
     profitWarehouseCode: nullable(body.profitWarehouseCode),
     contactName: nullable(body.contactName),
@@ -179,7 +226,13 @@ partnerRoutes.patch('/:id', jsonBody(updatePartnerSchema), async (c) => {
   const body = c.req.valid('json')
   const db = c.get('db')
   const [existing] = await db
-    .select({ id: partners.id, name: partners.name, status: partners.status })
+    .select({
+      id: partners.id,
+      name: partners.name,
+      status: partners.status,
+      currency: partners.currency,
+      priceListId: partners.priceListId,
+    })
     .from(partners)
     .where(eq(partners.id, id))
     .limit(1)
@@ -187,6 +240,9 @@ partnerRoutes.patch('/:id', jsonBody(updatePartnerSchema), async (c) => {
   if (!existing) {
     throw notFound('No encontramos este aliado.')
   }
+
+  const nextCurrency = body.currency ?? existing.currency
+  const nextPriceListId = body.priceListId ?? existing.priceListId
 
   const patch: Partial<typeof partners.$inferInsert> = {
     updatedAt: new Date(),
@@ -197,6 +253,7 @@ partnerRoutes.patch('/:id', jsonBody(updatePartnerSchema), async (c) => {
   if (body.rif !== undefined) patch.rif = normalizeRif(body.rif)
   if (body.type !== undefined) patch.type = body.type
   if (body.currency !== undefined) patch.currency = body.currency
+  if (body.priceListId !== undefined) patch.priceListId = body.priceListId
   if (body.status !== undefined) patch.status = body.status
   if (body.profitWarehouseCode !== undefined) {
     patch.profitWarehouseCode = nullable(body.profitWarehouseCode)
@@ -205,6 +262,13 @@ partnerRoutes.patch('/:id', jsonBody(updatePartnerSchema), async (c) => {
   if (body.contactPhone !== undefined) patch.contactPhone = nullable(body.contactPhone)
   if (body.contactEmail !== undefined) patch.contactEmail = nullable(body.contactEmail)
   if (body.notes !== undefined) patch.notes = nullable(body.notes)
+
+  if (nextCurrency !== existing.currency || nextPriceListId !== existing.priceListId) {
+    const list = await findPriceList(db, nextPriceListId)
+
+    if (!list) throw badRequest('La lista de precios seleccionada no existe.')
+    assertPriceListMatches(list, nextCurrency)
+  }
 
   await db.update(partners).set(patch).where(eq(partners.id, id))
 

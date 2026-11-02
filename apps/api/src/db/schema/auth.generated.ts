@@ -21,9 +21,14 @@ export const user = sqliteTable(
     banned: integer('banned', { mode: 'boolean' }).default(false),
     banReason: text('ban_reason'),
     banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),
+    // Tenant del usuario. La migración 0006 mantiene un trigger que exige
+    // aliado para los roles de aliado y lo prohíbe para los roles globales.
     partnerId: text('partner_id').references(() => partners.id, {
       onDelete: 'set null',
     }),
+    // Módulos habilitados por usuario para los roles colaboradores. Los roles
+    // admin y partner_admin tienen acceso total y no dependen de este valor.
+    moduleAccess: text('module_access').default('[]').notNull(),
   },
   (table) => [index('user_partnerId_idx').on(table.partnerId)],
 )

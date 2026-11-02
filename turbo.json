@@ -5,8 +5,8 @@
       "dependsOn": ["^build"],
       "outputs": [".cloudflare/**", "dist/**"]
     },
-    "@tools/api#build": {
-      "dependsOn": ["@tools/web#build"]
+    "@ecomaster/api#build": {
+      "dependsOn": ["@ecomaster/web#build"]
     },
     "dev": {
       "cache": false,

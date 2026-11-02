@@ -1,4 +1,5 @@
 import type { Db } from './db'
+import type { TenantScope } from './db/tenancy'
 
 export type SessionUser = {
   id: string
@@ -13,6 +14,7 @@ export type SessionUser = {
   banReason?: string | null
   banExpires?: Date | null
   partnerId?: string | null
+  moduleAccess?: string | null
 }
 
 export type AuthSession = {
@@ -42,5 +44,6 @@ export type AppEnv = {
   Variables: {
     db: Db
     session: AuthSession | null
+    tenantScope: TenantScope
   }
 }

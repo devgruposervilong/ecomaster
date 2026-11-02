@@ -1,5 +1,5 @@
 {
-  "name": "@tools/api",
+  "name": "@ecomaster/api",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -8,20 +8,21 @@
     "dev": "cf dev",
     "start": "cf dev",
     "build": "cf build",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
-    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
+    "check": "node scripts/check-tenancy.mjs && vitest run && tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
     "deploy": "node scripts/deploy.mts",
     "db:generate": "drizzle-kit generate",
-    "db:create": "cf d1 create --name tools-db",
-    "db:local": "cf d1 migrations apply 584af39d-eb80-486e-8b85-abe9e46b530d --local --dir migrations --persist-to .wrangler/state",
-    "db:remote": "cf d1 migrations apply 584af39d-eb80-486e-8b85-abe9e46b530d --dir migrations",
-    "r2:create": "cf r2 buckets create-by-name tools-storage"
+    "db:create": "cf d1 create --name ecomaster-db",
+    "db:local": "cf d1 migrations apply 0352d618-75f0-4803-9531-e27ce0fb0f59 --local --dir migrations --persist-to .wrangler/state",
+    "db:remote": "cf d1 migrations apply 0352d618-75f0-4803-9531-e27ce0fb0f59 --dir migrations",
+    "r2:create": "cf r2 buckets create-by-name ecomaster-storage"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.11",
+    "@ecomaster/shared": "workspace:*",
     "@hono/zod-validator": "^0.9.1",
     "@paralleldrive/cuid2": "^3.3.0",
-    "@tools/shared": "workspace:*",
     "better-auth": "^1.7.11",
     "drizzle-orm": "^0.45.3",
     "hono": "^4.9.6",
@@ -30,9 +31,12 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261008.1",
     "@types/node": "^22.10.1",
+    "@types/sql.js": "^1.4.11",
     "cf": "1.0.0-beta.13",
     "drizzle-kit": "^0.31.11",
+    "sql.js": "^1.15.1",
     "typescript": "^5.9.2",
+    "vitest": "^5.0.5",
     "wrangler": "^4.136.0"
   }
 }

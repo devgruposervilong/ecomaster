@@ -1,5 +1,6 @@
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
+import { isGlobalRole, isPartnerRole } from '@ecomaster/shared'
 import type { AppEnv } from '../env'
 import { createAuth } from './auth'
 
@@ -51,12 +52,12 @@ export const requirePartner = createMiddleware<AppEnv>(async (c, next) => {
     })
   }
 
-  if (session.user.role === 'admin') {
+  if (isGlobalRole(session.user.role)) {
     await next()
     return
   }
 
-  if (!session.user.partnerId) {
+  if (!isPartnerRole(session.user.role) || !session.user.partnerId) {
     throw new HTTPException(403, {
       message: 'Tu usuario no está asociado a un aliado.',
     })

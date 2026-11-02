@@ -3,15 +3,20 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { APIError } from 'better-auth'
 import { createAuth } from './auth/auth'
-import { requireAdmin, requireSession, sessionMiddleware } from './auth/middleware'
+import { requireAdmin, requirePartner, requireSession, sessionMiddleware } from './auth/middleware'
+import { requireModule } from './auth/modules'
+import { tenantMiddleware } from './auth/tenant'
 import { createDb } from './db'
+import { TenancyError } from './db/tenancy'
 import type { AppEnv } from './env'
 import { AppError } from './lib/errors'
 import { errorBody } from './lib/http'
+import { catalogRoutes } from './routes/catalog'
 import { dashboardRoutes } from './routes/dashboard'
 import { adminInviteRoutes, publicInviteRoutes } from './routes/invites'
 import { meRoutes } from './routes/me'
 import { partnerRoutes } from './routes/partners'
+import { salesRoutes } from './routes/sales'
 import { setupRoutes } from './routes/setup'
 import { userRoutes } from './routes/users'
 
@@ -35,6 +40,17 @@ app.onError((error, c) => {
           error.message,
         ),
         error.status,
+      )
+    }
+
+    if (error instanceof TenancyError) {
+      console.error(`[tenancy:${error.code}]`, error)
+      return c.json(
+        errorBody(
+          'TENANCY_ERROR',
+          'Ocurrió un error interno de aislamiento de datos. Intenta de nuevo.',
+        ),
+        500,
       )
     }
 
@@ -75,12 +91,8 @@ app.all('/api/auth/sign-up/*', (c) =>
 
 app.all('/api/auth/*', (c) => createAuth(c.env).handler(c.req.raw))
 
-app.use('/api/*', async (c, next) => {
-  c.set('db', createDb(c.env.DB))
-  await next()
-})
-
 app.use('/api/*', sessionMiddleware)
+app.use('/api/*', tenantMiddleware)
 
 app.route('/api/setup', setupRoutes)
 app.route('/api/invites', publicInviteRoutes)
@@ -91,11 +103,19 @@ app.route('/api/admin/users', userRoutes)
 app.route('/api/admin/invites', adminInviteRoutes)
 app.route('/api/admin/partners', partnerRoutes)
 
-app.use('/api/dashboard/*', requireSession)
+app.use('/api/catalog/*', requireSession, requirePartner, requireModule('catalog'))
+app.use('/api/catalog', requireSession, requirePartner, requireModule('catalog'))
+app.route('/api/catalog', catalogRoutes)
+
+app.use('/api/dashboard/*', requireSession, requirePartner, requireModule('dashboard'))
 app.route('/api/dashboard', dashboardRoutes)
 
-app.use('/api/me/*', requireSession)
-app.use('/api/me', requireSession)
+app.use('/api/sales/*', requireSession, requirePartner, requireModule('sales'))
+app.use('/api/sales', requireSession, requirePartner, requireModule('sales'))
+app.route('/api/sales', salesRoutes)
+
+app.use('/api/me/*', requireSession, requirePartner)
+app.use('/api/me', requireSession, requirePartner)
 app.route('/api/me', meRoutes)
 
 app.notFound((c) => {
