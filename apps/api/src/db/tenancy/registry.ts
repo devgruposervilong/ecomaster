@@ -11,6 +11,7 @@ import { priceHistory, priceListItems, priceLists } from '../schema/price-lists'
 import { productComponents } from '../schema/product-components'
 import { products } from '../schema/products'
 import { saleItems, salePayments, sales } from '../schema/sales'
+import { winkWebhookEvents } from '../schema/wink-events'
 import { TenancyError, type TenantScope, type TenantScopeKind } from './scope'
 
 export type TenancyOperation = 'select' | 'insert' | 'update' | 'delete'
@@ -137,6 +138,14 @@ const TABLE_POLICIES: Record<string, TablePolicy> = {
     columnKey: 'partnerId',
     access: { partner: ['select', 'insert'], admin: ALL, system: ['select'] },
     insertPartner: { partner: 'force', admin: 'require', system: 'require' },
+    requireWhereOnWrite: true,
+  },
+
+  // Webhooks de Wink: bitácora interna. El scope system recibe y procesa; el
+  // admin solo consulta. Ningún aliado tiene acceso.
+  [getTableName(winkWebhookEvents)]: {
+    kind: 'global',
+    access: { system: ['select', 'insert', 'update'], admin: ['select'] },
     requireWhereOnWrite: true,
   },
 

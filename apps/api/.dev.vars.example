@@ -2,3 +2,4 @@
 # Genera valores aleatorios, por ejemplo: openssl rand -hex 32
 BETTER_AUTH_SECRET=replace-with-a-long-random-secret
 SETUP_TOKEN=replace-with-a-one-time-setup-token
+WINK_WEBHOOK_SECRET=replace-with-the-hmac-secret-configured-in-wink

@@ -40,6 +40,7 @@ export type AppEnv = {
     BETTER_AUTH_URL: string
     BETTER_AUTH_SECRET: string
     SETUP_TOKEN: string
+    WINK_WEBHOOK_SECRET: string
   }
   Variables: {
     db: Db

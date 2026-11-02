@@ -90,6 +90,7 @@ Desarrollo local (`apps/api/.dev.vars`, no se commitea):
 
 - `BETTER_AUTH_SECRET`: secreto largo y aleatorio.
 - `SETUP_TOKEN`: token de un solo uso para `/setup`.
+- `WINK_WEBHOOK_SECRET`: secreto HMAC compartido con Wink.
 
 `cloudflare.config.ts` usa `http://localhost:5173` para `APP_URL` y
 `BETTER_AUTH_URL` en desarrollo, de modo que Vite sirve el frontend y hace proxy
@@ -122,6 +123,92 @@ APP_URL=https://backoffice.ecomaster.com pnpm --filter @ecomaster/api run deploy
 
 Los secretos de producción deben cargarse desde el panel del Worker
 (**Settings → Variables and Secrets**) o con `cf workers secrets update`.
+
+### Webhook de Wink
+
+La tienda online `https://ecomaster.winktienda.com/` envía sus ventas a:
+
+```text
+POST https://ecomaster-api.devgruposervilong.workers.dev/api/webhooks/wink
+```
+
+Autenticación HMAC-SHA256:
+
+- `X-Wink-Timestamp`: segundos Unix.
+- `X-Wink-Signature`: `sha256=<hex(HMAC_SHA256(WINK_WEBHOOK_SECRET, "<timestamp>.<body-crudo>"))>`.
+- Tolerancia de tiempo: 300 segundos.
+
+Configura en el Backoffice de Wink (**API & Webhooks**) la URL, selecciona
+autenticación HMAC con el mismo valor de `WINK_WEBHOOK_SECRET` y activa el
+endpoint.
+
+Desarrollo local (`apps/api/.dev.vars`):
+
+```text
+WINK_WEBHOOK_SECRET=el-mismo-secreto-configurado-en-wink
+```
+
+Puesta en marcha en producción:
+
+1. Genera un secreto distinto al de desarrollo:
+
+   ```powershell
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+
+2. Aplica la migración:
+
+   ```powershell
+   pnpm --filter @ecomaster/api db:remote
+   ```
+
+3. Carga el secreto en el panel de Cloudflare (**Workers & Pages →
+   ecomaster-api → Settings → Variables and Secrets → Add secret**) con el
+   nombre `WINK_WEBHOOK_SECRET`. Como alternativa, desde el CLI:
+
+   ```powershell
+   pnpm --filter @ecomaster/api exec cf workers secrets update WINK_WEBHOOK_SECRET `
+     --worker ecomaster-api --type secret_text --text "el-secreto"
+   ```
+
+   El valor pasado con `--text` queda en el historial del shell; el panel es la
+   opción recomendada.
+
+4. Despliega el Worker:
+
+   ```powershell
+   pnpm --filter @ecomaster/api run deploy
+   ```
+
+5. Configura el endpoint en Wink (ver arriba).
+
+La Fase 1 solo guarda el payload crudo en `wink_webhook_events`. No crea ventas,
+no asigna aliado y no interpreta SKU, importes ni pagos. La tabla es interna:
+solo el scope `system` escribe y el `admin` puede leerla; ningún aliado tiene
+acceso.
+
+Probar el endpoint con un payload firmado:
+
+```powershell
+$env:WINK_WEBHOOK_SECRET = "el-secreto"
+$env:WINK_WEBHOOK_URL = "http://127.0.0.1:8787/api/webhooks/wink"
+node apps/api/scripts/wink-webhook-send.mts
+```
+
+Para producción cambia `WINK_WEBHOOK_URL` por la URL pública. Consulta los
+eventos recibidos:
+
+```sql
+SELECT id, external_sale_id, event, status, received_at
+FROM wink_webhook_events
+ORDER BY received_at DESC
+LIMIT 20;
+```
+
+Los duplicados se detectan por `payload_hash` y devuelven el evento existente.
+Un payload firmado pero sin `event` o `data.id` se guarda con `status =
+'invalid'`; un JSON inválido se rechaza con `400` y una firma inválida o vencida
+con `401`.
 
 ## Comandos
 
@@ -157,6 +244,7 @@ Endpoints principales:
 - `GET /api/me`
 - `GET /api/dashboard/summary`
 - `GET|POST /api/invites/:token[/accept]`
+- `POST /api/webhooks/wink` (webhook HMAC de Wink)
 - `GET|POST|PATCH /api/admin/partners`, `/api/admin/users`, `/api/admin/invites`
 
 El alta pública de Better Auth (`/api/auth/sign-up/*`) está bloqueada: las

@@ -5,11 +5,13 @@ import type { AppEnv, AuthSession } from '../env'
 
 /**
  * Rutas públicas que necesitan acceso de sistema (no de un aliado):
- * setup inicial y aceptación/preview de invitación por token.
+ * setup inicial, aceptación/preview de invitación por token y webhooks
+ * autenticados con HMAC.
  */
 const SYSTEM_PATHS = [
   { prefix: '/api/setup', reason: 'setup' as const },
   { prefix: '/api/invites', reason: 'invite-accept' as const },
+  { prefix: '/api/webhooks', reason: 'wink-webhook' as const },
 ]
 
 function matchesPath(path: string, prefix: string) {

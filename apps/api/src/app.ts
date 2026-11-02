@@ -19,6 +19,7 @@ import { partnerRoutes } from './routes/partners'
 import { salesRoutes } from './routes/sales'
 import { setupRoutes } from './routes/setup'
 import { userRoutes } from './routes/users'
+import { winkWebhookRoutes } from './routes/webhooks/wink'
 
 export const app = new Hono<AppEnv>()
 
@@ -96,6 +97,7 @@ app.use('/api/*', tenantMiddleware)
 
 app.route('/api/setup', setupRoutes)
 app.route('/api/invites', publicInviteRoutes)
+app.route('/api/webhooks', winkWebhookRoutes)
 
 app.use('/api/admin/*', requireAdmin)
 

@@ -20,6 +20,7 @@ const partnerA: TenantScope = { kind: 'partner', partnerId: 'pa' }
 const partnerB: TenantScope = { kind: 'partner', partnerId: 'pb' }
 const admin: TenantScope = { kind: 'admin' }
 const deny: TenantScope = { kind: 'deny' }
+const winkSystem: TenantScope = { kind: 'system', reason: 'wink-webhook' }
 
 const migrationsDir = fileURLToPath(new URL('../../../migrations/', import.meta.url))
 const require = createRequire(import.meta.url)
@@ -332,6 +333,56 @@ describe('scopeDb', () => {
 
     expect(() => tdb.select().from(schema.user)).toThrow(TenancyError)
     expect(() => tdb.select().from(schema.invites)).toThrow(TenancyError)
+  })
+
+  it('no permite que un aliado consulte ni escriba los webhooks de Wink', () => {
+    const tdb = scopeDb(db, partnerA)
+
+    expect(() => tdb.select().from(schema.winkWebhookEvents)).toThrow(TenancyError)
+    expect(() =>
+      tdb.insert(schema.winkWebhookEvents).values({
+        payloadHash: 'hash-aliado',
+        payload: '{}',
+      }),
+    ).toThrow(TenancyError)
+  })
+
+  it('el scope system registra webhooks de Wink y el admin solo los lee', async () => {
+    const sdb = scopeDb(db, winkSystem)
+
+    await sdb.insert(schema.winkWebhookEvents).values({
+      id: 'wink-1',
+      externalSaleId: '286',
+      event: 'new_sale',
+      payloadHash: 'hash-1',
+      payload: '{"event":"new_sale","data":{"id":286}}',
+      status: 'received',
+      signatureTimestamp: 1_800_000_000,
+    })
+
+    await sdb
+      .update(schema.winkWebhookEvents)
+      .set({ status: 'processed', processedAt: new Date() })
+      .where(eq(schema.winkWebhookEvents.id, 'wink-1'))
+
+    const rows = await sdb
+      .select({ id: schema.winkWebhookEvents.id, status: schema.winkWebhookEvents.status })
+      .from(schema.winkWebhookEvents)
+
+    expect(rows).toEqual([{ id: 'wink-1', status: 'processed' }])
+
+    const adb = scopeDb(db, admin)
+    const adminRows = await adb
+      .select({ id: schema.winkWebhookEvents.id })
+      .from(schema.winkWebhookEvents)
+
+    expect(adminRows).toEqual([{ id: 'wink-1' }])
+    expect(() =>
+      adb.insert(schema.winkWebhookEvents).values({
+        payloadHash: 'hash-admin',
+        payload: '{}',
+      }),
+    ).toThrow(TenancyError)
   })
 
   it('no permite que un aliado cree aliados', () => {

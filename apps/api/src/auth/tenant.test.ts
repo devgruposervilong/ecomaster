@@ -66,6 +66,14 @@ describe('resolveTenantScope', () => {
     })
   })
 
+  it('permite el webhook de Wink como sistema', () => {
+    expect(resolveTenantScope('/api/webhooks/wink', null)).toEqual({
+      kind: 'system',
+      reason: 'wink-webhook',
+    })
+    expect(resolveTenantScope('/api/webhooks-extra', null)).toEqual({ kind: 'deny' })
+  })
+
   it('no confunde las invitaciones admin con las públicas', () => {
     expect(resolveTenantScope('/api/admin/invites', null)).toEqual({ kind: 'deny' })
     expect(resolveTenantScope('/api/invites-extra', null)).toEqual({ kind: 'deny' })

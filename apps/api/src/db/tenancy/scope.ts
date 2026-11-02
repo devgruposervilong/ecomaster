@@ -3,7 +3,8 @@
  *
  * - `admin`: acceso global (solo usuarios con rol admin).
  * - `partner`: acceso limitado a las filas de un aliado.
- * - `system`: operaciones internas acotadas (setup y aceptar invitación).
+ * - `system`: operaciones internas acotadas (setup, aceptar invitación y
+ *   webhooks firmados).
  * - `deny`: falla cerrado; cualquier acceso a datos lanza error.
  *
  * El scope nunca se deriva de un parámetro del cliente: sale de la sesión o
@@ -12,7 +13,7 @@
 export type TenantScope =
   | { kind: 'admin' }
   | { kind: 'partner'; partnerId: string }
-  | { kind: 'system'; reason: 'setup' | 'invite-accept' }
+  | { kind: 'system'; reason: 'setup' | 'invite-accept' | 'wink-webhook' }
   | { kind: 'deny' }
 
 export type TenantScopeKind = TenantScope['kind']

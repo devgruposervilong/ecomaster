@@ -36,6 +36,7 @@ export default defineConfig({
       BETTER_AUTH_URL: bindings.text(authUrl),
       BETTER_AUTH_SECRET: bindings.secret(),
       SETUP_TOKEN: bindings.secret(),
+      WINK_WEBHOOK_SECRET: bindings.secret(),
       DB: bindings.d1({
         name: 'ecomaster-db',
         id: '0352d618-75f0-4803-9531-e27ce0fb0f59',

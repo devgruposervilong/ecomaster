@@ -1,0 +1,47 @@
+{
+  "event": "new_sale",
+  "data": {
+    "id": 286,
+    "status": "En preparación",
+    "step": 2,
+    "is_delivery": true,
+    "total_price_dlrs": 13,
+    "total_price_bs": 474.5,
+    "subtotal": 10,
+    "total_discount": 0,
+    "total_tax": 0,
+    "delivery_fee": 3,
+    "date": "2026-05-04T09:42:00.000Z",
+    "createdAt": "2026-05-04T09:42:00.000Z",
+    "updatedAt": "2026-05-04T09:42:00.000Z",
+    "Customer": {
+      "id": 42,
+      "name": "Cliente de prueba",
+      "phone": "+584120000000"
+    },
+    "Inventory": {
+      "id": 7,
+      "name": "Tienda online"
+    },
+    "Orders": [
+      {
+        "id": 9001,
+        "quantity": 1,
+        "price": 10,
+        "Product": {
+          "id": 123,
+          "name": "Producto de prueba",
+          "sku": "SKU-001"
+        }
+      }
+    ],
+    "Payment_Methods": [
+      {
+        "id": 1,
+        "name": "Pago móvil",
+        "amount": 474.5,
+        "currency": "BS"
+      }
+    ]
+  }
+}

@@ -71,6 +71,13 @@
       "when": 1793310888548,
       "tag": "0009_flat_catalog_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793391483714,
+      "tag": "0010_handy_adam_destine",
+      "breakpoints": true
     }
   ]
 }
