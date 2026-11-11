@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Product } from '@ecomaster/shared'
+import type { Channel, Product } from '@ecomaster/shared'
 import {
   PRODUCT_TYPE_LABELS,
   PRODUCT_TYPES,
@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiFetch, errorMessage } from '@/lib/api'
 import { formatAmount } from '@/lib/format'
 import { channelsQuery, meQuery, productsQuery } from '@/lib/queries'
@@ -62,9 +63,12 @@ function CatalogPage() {
   const [type, setType] = useState<'all' | 'article' | 'service' | 'promotion'>('all')
   const [page, setPage] = useState(1)
 
+  const [tab, setTab] = useState<'products' | 'channels'>('products')
   const [formOpen, setFormOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [channelFormOpen, setChannelFormOpen] = useState(false)
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
+  const [deleteChannel, setDeleteChannel] = useState<Channel | null>(null)
   const [pricesDialogOpen, setPricesDialogOpen] = useState(false)
   const [historyTarget, setHistoryTarget] = useState<{
     product: Product
@@ -111,6 +115,23 @@ function CatalogPage() {
     onError: (error) => toast.error(errorMessage(error)),
   })
 
+  const removeChannel = useMutation({
+    mutationFn: (channel: Channel) =>
+      apiFetch(`/api/catalog/channels/${channel.id}`, { method: 'DELETE' }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['channels'] })
+      await queryClient.invalidateQueries({ queryKey: ['channel-options'] })
+      await queryClient.invalidateQueries({ queryKey: ['partner-options'] })
+      await queryClient.invalidateQueries({ queryKey: ['sales-partner-options'] })
+      await queryClient.invalidateQueries({ queryKey: ['products'] })
+      await queryClient.invalidateQueries({ queryKey: ['channel-prices'] })
+      await queryClient.invalidateQueries({ queryKey: ['product-history'] })
+      toast.success('Canal eliminado')
+      setDeleteChannel(null)
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  })
+
   const rows = products.data?.data ?? []
   const meta = products.data?.meta
 
@@ -122,6 +143,16 @@ function CatalogPage() {
   function openEdit(product: Product) {
     setEditingProduct(product)
     setFormOpen(true)
+  }
+
+  function openCreateChannel() {
+    setEditingChannel(null)
+    setChannelFormOpen(true)
+  }
+
+  function openEditChannel(channel: Channel) {
+    setEditingChannel(channel)
+    setChannelFormOpen(true)
   }
 
   function openHistory(product: Product, channelId?: string) {
@@ -137,43 +168,49 @@ function CatalogPage() {
     <div className="space-y-5">
       <PageHeader
         eyebrow="Catálogo"
-        title="Productos y precios"
+        title={tab === 'products' ? 'Productos y precios' : 'Canales de precios'}
         description={
-          isGlobal
-            ? 'El producto es global. El precio se define por canal; cada aliado vende con el precio activo de su canal.'
-            : 'Estos son los productos activos en tu canal de precios. Los precios los administra Ecomaster.'
+          tab === 'products'
+            ? isGlobal
+              ? 'El producto es global. El precio se define por canal; cada aliado vende con el precio activo de su canal.'
+              : 'Estos son los productos activos en tu canal de precios. Los precios los administra Ecomaster.'
+            : isAdmin
+              ? 'Crea y administra los canales que agrupan precios por moneda. Los aliados se asignan a un canal.'
+              : 'Consulta los canales de precios de tu operación.'
         }
         actions={
           isAdmin ? (
-            <>
+            tab === 'products' ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setPricesDialogOpen(true)}
+                  disabled={activeChannels.length === 0}
+                  className="rounded-xl border-black/15"
+                >
+                  <Tags className="size-4" />
+                  Cambiar precios…
+                </Button>
+                <Button
+                  type="button"
+                  onClick={openCreate}
+                  className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
+                >
+                  <Plus className="size-4" />
+                  Nuevo producto
+                </Button>
+              </>
+            ) : (
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => setChannelFormOpen(true)}
-                className="rounded-xl border-black/15"
+                onClick={openCreateChannel}
+                className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
               >
                 <ListPlus className="size-4" />
                 Nuevo canal
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setPricesDialogOpen(true)}
-                disabled={activeChannels.length === 0}
-                className="rounded-xl border-black/15"
-              >
-                <Tags className="size-4" />
-                Cambiar precios…
-              </Button>
-              <Button
-                type="button"
-                onClick={openCreate}
-                className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
-              >
-                <Plus className="size-4" />
-                Nuevo producto
-              </Button>
-            </>
+            )
           ) : undefined
         }
       />
@@ -205,6 +242,31 @@ function CatalogPage() {
         />
       </div>
 
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as 'products' | 'channels')}
+        className="space-y-4"
+      >
+        <TabsList className="h-10 rounded-xl border border-black/10 bg-white p-1">
+          <TabsTrigger value="products" className="rounded-lg px-3 text-xs">
+            Productos
+            {meta ? (
+              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">
+                {meta.total}
+              </span>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="channels" className="rounded-lg px-3 text-xs">
+            Canales
+            {channels.data?.meta ? (
+              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">
+                {channels.data.meta.total}
+              </span>
+            ) : null}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="products" className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-black/10 bg-white p-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-black/35" />
@@ -260,8 +322,20 @@ function CatalogPage() {
       </div>
 
       {isAdmin && activeChannels.length === 0 ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Todavía no hay canales de precios activos. Crea un canal antes de asignar aliados.
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Todavía no hay canales de precios activos. Crea uno en la pestaña Canales antes de
+            asignar aliados.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setTab('channels')}
+            className="rounded-lg border-amber-300 bg-white/60 text-amber-900 hover:bg-white"
+          >
+            Ir a Canales
+          </Button>
         </div>
       ) : null}
 
@@ -489,13 +563,156 @@ function CatalogPage() {
         miles según la configuración de Venezuela. Si un canal no tiene precio activo para un
         producto, solo un administrador puede cobrarlo a mano en la venta.
       </p>
+        </TabsContent>
+
+        <TabsContent value="channels" className="space-y-4">
+          <div className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+            {channels.isLoading ? (
+              <div className="space-y-2 p-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="h-14 animate-pulse rounded-xl bg-black/[0.04]" />
+                ))}
+              </div>
+            ) : channels.isError ? (
+              <div className="px-5 py-10 text-center text-sm text-black/55">
+                No pudimos cargar los canales. Intenta de nuevo.
+              </div>
+            ) : allChannels.length === 0 ? (
+              <EmptyState
+                icon={Tags}
+                title="Todavía no hay canales"
+                description={
+                  isAdmin
+                    ? 'Crea el primer canal de precios para asignarle aliados y definir sus precios.'
+                    : 'No hay canales de precios configurados.'
+                }
+                action={
+                  isAdmin ? (
+                    <Button
+                      type="button"
+                      onClick={openCreateChannel}
+                      className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
+                    >
+                      <ListPlus className="size-4" />
+                      Nuevo canal
+                    </Button>
+                  ) : undefined
+                }
+                className="border-0"
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left">
+                  <thead className="bg-black/[0.02]">
+                    <tr>
+                      <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Canal
+                      </th>
+                      <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Moneda
+                      </th>
+                      <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Estado
+                      </th>
+                      <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Precios
+                      </th>
+                      <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allChannels.map((channel) => (
+                      <tr
+                        key={channel.id}
+                        className="border-t border-black/[0.06] hover:bg-black/[0.015]"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]">
+                              <Tags className="size-4 text-black/45" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-[13px] font-medium text-[#0A0A0A]">
+                                {channel.name}
+                              </p>
+                              <p className="truncate text-[11px] text-black/40">
+                                {channel.description || 'Sin descripción'}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[11px] font-medium text-black/60">
+                            {channel.currency}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={channel.status} />
+                        </td>
+                        <td className="px-4 py-3 text-[13px] tabular-nums text-black/60">
+                          {channel.itemCount}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {isAdmin ? (
+                              <>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="rounded-lg text-black/45 hover:text-[#0A0A0A]"
+                                  onClick={() => openEditChannel(channel)}
+                                  title="Editar canal"
+                                >
+                                  <Pencil className="size-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="rounded-lg text-black/45 hover:text-red-600"
+                                  onClick={() => setDeleteChannel(channel)}
+                                  title="Eliminar canal"
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Lock className="size-3.5 text-black/20" />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <p className="flex items-start gap-2 text-[11px] leading-5 text-black/40">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            Los canales con aliados o ventas asociadas no se pueden eliminar; desactívalos en su
+            lugar. Al eliminar un canal sin uso también se eliminan sus precios e historial.
+          </p>
+        </TabsContent>
+      </Tabs>
 
       <ProductFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         product={editingProduct}
       />
-      <ChannelFormDialog open={channelFormOpen} onOpenChange={setChannelFormOpen} />
+      <ChannelFormDialog
+        open={channelFormOpen}
+        onOpenChange={(next) => {
+          setChannelFormOpen(next)
+          if (!next) setEditingChannel(null)
+        }}
+        channel={editingChannel ?? undefined}
+      />
       <ChannelPricesDialog
         open={pricesDialogOpen}
         onOpenChange={setPricesDialogOpen}
@@ -533,6 +750,24 @@ function CatalogPage() {
         isPending={remove.isPending}
         onConfirm={() => {
           if (deleteProduct) remove.mutate(deleteProduct)
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(deleteChannel)}
+        onOpenChange={(next) => {
+          if (!next) setDeleteChannel(null)
+        }}
+        title="Eliminar canal"
+        description={
+          deleteChannel
+            ? `Se eliminará el canal ${deleteChannel.name} junto con sus precios e historial. Si tiene aliados o ventas asociadas, no se podrá eliminar; en ese caso desactívalo.`
+            : ''
+        }
+        confirmLabel="Eliminar"
+        destructive
+        isPending={removeChannel.isPending}
+        onConfirm={() => {
+          if (deleteChannel) removeChannel.mutate(deleteChannel)
         }}
       />
     </div>
