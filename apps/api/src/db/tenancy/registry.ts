@@ -7,7 +7,7 @@ import { exchangeRates } from '../schema/exchange-rates'
 import { healthchecks } from '../schema/health'
 import { invites } from '../schema/invites'
 import { partners } from '../schema/partners'
-import { priceHistory, priceListItems, priceLists } from '../schema/price-lists'
+import { channels, channelPrices, priceHistory } from '../schema/channels'
 import { productComponents } from '../schema/product-components'
 import { products } from '../schema/products'
 import { saleItems, salePayments, sales } from '../schema/sales'
@@ -89,19 +89,19 @@ const TABLE_POLICIES: Record<string, TablePolicy> = {
   },
 
   // Catálogo global: los aliados solo leen; el admin administra. El filtro por
-  // lista de precios se hace en la ruta, no en tenancy (el catálogo no es
+  // canal de precios se hace en la ruta, no en tenancy (el catálogo no es
   // tenant).
   [getTableName(products)]: {
     kind: 'global',
     access: { partner: ['select'], admin: ALL, system: ['select'] },
     requireWhereOnWrite: true,
   },
-  [getTableName(priceLists)]: {
+  [getTableName(channels)]: {
     kind: 'global',
     access: { partner: ['select'], admin: ALL, system: ['select'] },
     requireWhereOnWrite: true,
   },
-  [getTableName(priceListItems)]: {
+  [getTableName(channelPrices)]: {
     kind: 'global',
     access: { partner: ['select'], admin: ALL, system: ['select'] },
     requireWhereOnWrite: true,

@@ -16,10 +16,12 @@ import { toast } from 'sonner'
 import {
   ROLE_LABELS,
   USER_STATUS_LABELS,
+  isCollaboratorRole,
+  isGlobalRole,
   type InviteRow,
   type Role,
   type UserRow,
-} from '@tools/shared'
+} from '@ecomaster/shared'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/page-header'
@@ -174,16 +176,24 @@ function UsersPageContent() {
         helper.accessor('role', {
           header: 'Rol',
           cell: ({ row }) => (
-            <span className="inline-flex rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/60">
-              {ROLE_LABELS[row.original.role]}
-            </span>
+            <div className="flex flex-col items-start gap-1">
+              <span className="inline-flex rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/60">
+                {ROLE_LABELS[row.original.role]}
+              </span>
+              {isCollaboratorRole(row.original.role) ? (
+                <span className="text-[10px] text-black/35">
+                  {row.original.modules.length} módulo
+                  {row.original.modules.length === 1 ? '' : 's'}
+                </span>
+              ) : null}
+            </div>
           ),
         }),
         helper.accessor('partnerName', {
           header: 'Aliado',
           cell: ({ row }) => (
             <span className="text-[12px] text-black/55">
-              {row.original.role === 'admin'
+              {isGlobalRole(row.original.role)
                 ? 'Acceso global'
                 : (row.original.partnerName ?? 'Sin aliado')}
             </span>
@@ -350,8 +360,9 @@ function UsersPageContent() {
                   <SelectContent>
                     <SelectItem value="all">Todos los roles</SelectItem>
                     <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="collaborator">Colaborador global</SelectItem>
                     <SelectItem value="partner_admin">Admin. del aliado</SelectItem>
-                    <SelectItem value="partner_operator">Operador</SelectItem>
+                    <SelectItem value="partner_collaborator">Colaborador del aliado</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -546,8 +557,8 @@ function UsersPageContent() {
                         <td className="px-3 py-3.5 md:px-5">
                           <p className="text-[13px] font-medium text-[#0A0A0A]">{invite.email}</p>
                           <p className="text-[11px] text-black/35 md:hidden">
-                            {invite.partnerName} · {ROLE_LABELS[invite.role]} · vence{' '}
-                            {formatDate(invite.expiresAt)}
+                            {invite.partnerName ?? 'Acceso global'} · {ROLE_LABELS[invite.role]} ·
+                            vence {formatDate(invite.expiresAt)}
                           </p>
                           <p className="hidden text-[11px] text-black/35 md:block">
                             {invite.createdByName
@@ -556,7 +567,7 @@ function UsersPageContent() {
                           </p>
                         </td>
                         <td className="hidden px-5 py-3.5 text-[12px] text-black/55 md:table-cell">
-                          {invite.partnerName}
+                          {invite.partnerName ?? 'Acceso global'}
                         </td>
                         <td className="hidden px-5 py-3.5 md:table-cell">
                           <span className="rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/55">

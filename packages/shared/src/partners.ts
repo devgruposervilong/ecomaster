@@ -23,7 +23,7 @@ export const createPartnerSchema = z.object({
     .or(z.literal('')),
   type: partnerTypeSchema,
   currency: currencySchema,
-  priceListId: z.string().trim().min(1, 'Selecciona una lista de precios'),
+  channelId: z.string().trim().min(1, 'Selecciona un canal de precios'),
   profitWarehouseCode: z.string().trim().max(60).optional().or(z.literal('')),
   contactName: z.string().trim().max(120).optional().or(z.literal('')),
   contactPhone: z.string().trim().max(40).optional().or(z.literal('')),
@@ -52,8 +52,8 @@ export type Partner = {
   slug: string
   type: 'permanente' | 'bazar'
   currency: 'USD' | 'EUR' | 'VES'
-  priceListId: string
-  priceListName: string
+  channelId: string
+  channelName: string
   status: 'active' | 'inactive'
   profitWarehouseCode: string | null
   contactName: string | null

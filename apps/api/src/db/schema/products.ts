@@ -29,8 +29,8 @@ const timestamps = {
  * Catálogo global y plano. Cada fila es un artículo vendible: no existe
  * jerarquía padre/variante. El SKU es el código de Profit y es único global.
  *
- * El precio no vive aquí: vive en `price_list_items`, porque el mismo producto
- * puede tener precios distintos según la lista del aliado.
+ * El precio no vive aquí: vive en `channel_prices` (canales de precios),
+ * porque el mismo producto puede tener precios distintos según el canal.
  */
 export const products = sqliteTable(
   'products',

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from '@tanstack/react-form'
 import { ArrowRight, Loader2, Mail, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
-import { ROLE_LABELS } from '@tools/shared'
+import { ROLE_LABELS } from '@ecomaster/shared'
 import { AuthShell } from '@/components/auth-shell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -116,14 +116,15 @@ function InvitationPage() {
   }
 
   const invite = preview.data
+  const scope = invite.partnerName ?? 'Eco Master'
 
   return (
     <AuthShell
-      headline={`Bienvenido a ${invite.partnerName}.`}
+      headline={`Bienvenido a ${scope}.`}
       description="Completa tu nombre y crea una contraseña para activar tu acceso al backoffice. El enlace solo puede usarse una vez."
       bullets={[
         `Acceso como ${ROLE_LABELS[invite.role]}`,
-        'Aislamiento por aliado',
+        invite.partnerName ? 'Aislamiento por aliado' : 'Acceso global por módulos',
         'Válido hasta el ' + formatDate(invite.expiresAt),
       ]}
     >
@@ -135,7 +136,13 @@ function InvitationPage() {
           Activa tu cuenta
         </h1>
         <p className="mt-2 text-sm leading-6 text-black/50">
-          Te invitó <strong className="font-medium text-[#0A0A0A]">{invite.partnerName}</strong>.
+          {invite.partnerName ? (
+            <>
+              Te invitó <strong className="font-medium text-[#0A0A0A]">{invite.partnerName}</strong>.
+            </>
+          ) : (
+            'Tu acceso es global y estará limitado a los módulos habilitados por el administrador.'
+          )}
         </p>
       </div>
 

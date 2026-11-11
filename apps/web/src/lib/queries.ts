@@ -1,13 +1,25 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import type {
+  CatalogProduct,
+  Currency,
   DashboardSummary,
   InvitePreview,
   InviteRow,
   Paginated,
   Partner,
+  PriceHistoryEntry,
+  Channel,
+  ChannelPrice,
+  Product,
+  ProductComponent,
+  ModuleKey,
+  ProductStatus,
+  ProductType,
   Role,
+  Sale,
+  SaleDetail,
   UserRow,
-} from '@tools/shared'
+} from '@ecomaster/shared'
 import { apiFetch } from './api'
 
 export type Me = {
@@ -17,13 +29,15 @@ export type Me = {
     email: string
     role: Role
     partnerId: string | null
+    modules: ModuleKey[]
     image: string | null
   }
   partner: {
     id: string
     name: string
     type: 'permanente' | 'bazar'
-    currency: 'USD' | 'EUR' | 'VES'
+    currency: Currency
+    channelId: string
     status: 'active' | 'inactive'
   } | null
 }
@@ -32,7 +46,9 @@ export type PartnerOption = {
   id: string
   name: string
   type: 'permanente' | 'bazar'
-  currency: 'USD' | 'EUR' | 'VES'
+  currency: Currency
+  channelId: string
+  channelName: string
   contactPhone: string | null
 }
 
@@ -57,6 +73,39 @@ export type PartnersQuery = {
   search?: string
   status?: 'active' | 'inactive'
   type?: 'permanente' | 'bazar'
+  page?: number
+  pageSize?: number
+}
+
+export type ProductsQuery = {
+  search?: string
+  channelId?: string
+  status?: ProductStatus
+  type?: ProductType
+  page?: number
+  pageSize?: number
+}
+
+export type ChannelsQuery = {
+  search?: string
+  status?: 'active' | 'inactive'
+  currency?: Currency
+  page?: number
+  pageSize?: number
+}
+
+export type ChannelPricesQuery = {
+  search?: string
+  status?: 'active' | 'inactive'
+}
+
+export type SalesQuery = {
+  search?: string
+  partnerId?: string
+  status?: 'confirmed' | 'cancelled'
+  paymentStatus?: 'unpaid' | 'partial' | 'paid'
+  from?: string
+  to?: string
   page?: number
   pageSize?: number
 }
@@ -119,6 +168,89 @@ export const partnerOptionsQuery = queryOptions({
   staleTime: 60_000,
 })
 
+export function productsQuery(params: ProductsQuery = {}) {
+  return queryOptions({
+    queryKey: ['products', params],
+    queryFn: () =>
+      apiFetch<Paginated<CatalogProduct>>(
+        withQuery('/api/catalog/products', {
+          search: params.search,
+          channelId: params.channelId,
+          status: params.status,
+          type: params.type,
+          page: params.page,
+          pageSize: params.pageSize,
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function channelsQuery(params: ChannelsQuery = {}) {
+  return queryOptions({
+    queryKey: ['channels', params],
+    queryFn: () =>
+      apiFetch<Paginated<Channel>>(
+        withQuery('/api/catalog/channels', {
+          search: params.search,
+          status: params.status,
+          currency: params.currency,
+          page: params.page,
+          pageSize: params.pageSize,
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function channelOptionsQuery(
+  currency?: Currency,
+  status?: 'active' | 'inactive',
+) {
+  return queryOptions({
+    queryKey: ['channel-options', currency ?? null, status ?? null],
+    queryFn: () =>
+      apiFetch<{ data: Array<Pick<Channel, 'id' | 'name' | 'currency' | 'status'>> }>(
+        withQuery('/api/catalog/channels/options', { currency, status }),
+      ).then((response) => response.data),
+    staleTime: 30_000,
+  })
+}
+
+export function channelPricesQuery(channelId: string, params: ChannelPricesQuery = {}) {
+  return queryOptions({
+    queryKey: ['channel-prices', channelId, params],
+    queryFn: () =>
+      apiFetch<{ data: ChannelPrice[] }>(
+        withQuery(`/api/catalog/channels/${channelId}/prices`, {
+          search: params.search,
+          status: params.status,
+        }),
+      ).then((response) => response.data),
+    staleTime: 10_000,
+  })
+}
+
+export function productHistoryQuery(productId: string, channelId: string) {
+  return queryOptions({
+    queryKey: ['product-history', productId, channelId],
+    queryFn: () =>
+      apiFetch<{ data: PriceHistoryEntry[] }>(
+        withQuery(`/api/catalog/products/${productId}/history`, { channelId }),
+      ).then((response) => response.data),
+  })
+}
+
+export function productComponentsQuery(productId: string) {
+  return queryOptions({
+    queryKey: ['product-components', productId],
+    queryFn: () =>
+      apiFetch<{ data: ProductComponent[] }>(
+        `/api/catalog/products/${productId}/components`,
+      ).then((response) => response.data),
+  })
+}
+
 export function usersQuery(params: UsersQuery = {}) {
   return queryOptions({
     queryKey: ['users', params],
@@ -154,6 +286,66 @@ export function invitesQuery(params: InvitesQuery = {}) {
   })
 }
 
+export function salesQuery(params: SalesQuery = {}) {
+  return queryOptions({
+    queryKey: ['sales', params],
+    queryFn: () =>
+      apiFetch<Paginated<Sale>>(
+        withQuery('/api/sales', {
+          search: params.search,
+          partnerId: params.partnerId,
+          status: params.status,
+          paymentStatus: params.paymentStatus,
+          from: params.from,
+          to: params.to,
+          page: params.page,
+          pageSize: params.pageSize,
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export type SalesPartnerOption = {
+  id: string
+  name: string
+  type: 'permanente' | 'bazar'
+  currency: Currency
+  channelId: string
+  channelName: string
+  contactPhone: string | null
+}
+
+export const salesPartnerOptionsQuery = queryOptions({
+  queryKey: ['sales-partner-options'],
+  queryFn: () =>
+    apiFetch<{ data: SalesPartnerOption[] }>('/api/sales/partners').then(
+      (response) => response.data,
+    ),
+  staleTime: 60_000,
+})
+
+export type SalesRate = {
+  date: string
+  usdRate: number
+  eurRate: number | null
+  source: 'bcv'
+}
+
+export const salesRateQuery = queryOptions({
+  queryKey: ['sales-rate'],
+  queryFn: () =>
+    apiFetch<{ data: SalesRate }>('/api/sales/rates').then((response) => response.data),
+  staleTime: 60_000,
+})
+
+export function saleQuery(id: string) {
+  return queryOptions({
+    queryKey: ['sale', id],
+    queryFn: () => apiFetch<{ data: SaleDetail }>(`/api/sales/${id}`).then((response) => response.data),
+  })
+}
+
 export function invitePreviewQuery(token: string) {
   return queryOptions({
     queryKey: ['invite-preview', token],
@@ -163,3 +355,6 @@ export function invitePreviewQuery(token: string) {
     retry: false,
   })
 }
+
+// Reexportado para evitar imports profundos en componentes.
+export type { Product }

@@ -1,0 +1,252 @@
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Loader2, Package, Pencil } from 'lucide-react'
+import { toast } from 'sonner'
+import type { Product, ProductType } from '@ecomaster/shared'
+import { PRODUCT_TYPE_LABELS, PRODUCT_TYPES } from '@ecomaster/shared'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { apiFetch, errorMessage, jsonBody } from '@/lib/api'
+
+export function ProductFormDialog({
+  open,
+  onOpenChange,
+  product,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  product?: Product | null
+}) {
+  const queryClient = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [sku, setSku] = useState('')
+  const [barcode, setBarcode] = useState('')
+  const [name, setName] = useState('')
+  const [type, setType] = useState<ProductType>('article')
+  const [ivaEnabled, setIvaEnabled] = useState(false)
+  const [status, setStatus] = useState<'active' | 'inactive'>('active')
+  const [trackInventory, setTrackInventory] = useState(true)
+  const isEditing = Boolean(product)
+
+  useEffect(() => {
+    if (!open) return
+
+    setError(null)
+    setSku(product?.sku ?? '')
+    setBarcode(product?.barcode ?? '')
+    setName(product?.name ?? '')
+    setType(product?.type ?? 'article')
+    setIvaEnabled(product?.ivaEnabled ?? false)
+    setStatus(product?.status ?? 'active')
+    setTrackInventory(product?.trackInventory ?? true)
+  }, [open, product?.id])
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+    setIsSubmitting(true)
+
+    try {
+      const body = jsonBody({
+        sku: sku.trim(),
+        barcode: barcode.trim(),
+        name: name.trim(),
+        type,
+        ivaEnabled,
+        status,
+        trackInventory,
+      })
+
+      if (product) {
+        await apiFetch(`/api/catalog/products/${product.id}`, { method: 'PATCH', body })
+      } else {
+        await apiFetch('/api/catalog/products', { method: 'POST', body })
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['products'] })
+      await queryClient.invalidateQueries({ queryKey: ['channel-prices'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      toast.success(isEditing ? 'Producto actualizado' : 'Producto creado')
+      onOpenChange(false)
+    } catch (submitError) {
+      setError(errorMessage(submitError))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-black/10 sm:max-w-xl">
+        <DialogHeader>
+          <div className="mb-1 flex size-10 items-center justify-center rounded-2xl bg-[#BCD86C]">
+            {isEditing ? (
+              <Pencil className="size-4 text-[#0A0A0A]" />
+            ) : (
+              <Package className="size-4 text-[#0A0A0A]" />
+            )}
+          </div>
+          <DialogTitle>{isEditing ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
+          <DialogDescription>
+            El producto es global. El precio se define por canal, no aquí.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="sku">SKU / código Profit</Label>
+              <Input
+                id="sku"
+                value={sku}
+                onChange={(event) => setSku(event.target.value)}
+                placeholder="Ej. 1228R"
+                className="h-11 rounded-xl border-black/15"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="barcode">Código de barras (opcional)</Label>
+              <Input
+                id="barcode"
+                value={barcode}
+                onChange={(event) => setBarcode(event.target.value)}
+                placeholder="Ej. 7591234567890"
+                className="h-11 rounded-xl border-black/15"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="name">Nombre</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Ej. Shampoo de coco 500 ml"
+              className="h-11 rounded-xl border-black/15"
+              required
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={type} onValueChange={(value) => setType(value as ProductType)}>
+                <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_TYPES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {PRODUCT_TYPE_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Estado</Label>
+              <Select
+                value={status}
+                onValueChange={(value) => setStatus(value as 'active' | 'inactive')}
+              >
+                <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="inactive">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-2xl border border-black/10 p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={ivaEnabled}
+                onChange={(event) => setIvaEnabled(event.target.checked)}
+                className="mt-0.5 size-4 accent-[#0A0A0A]"
+              />
+              <span>
+                <span className="block text-sm font-medium text-[#0A0A0A]">
+                  Cobra IVA (16%)
+                </span>
+                <span className="block text-[11px] leading-4 text-black/40">
+                  Se aplica sobre la línea después del descuento global.
+                </span>
+              </span>
+            </label>
+            <label className="mt-3 flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={trackInventory}
+                onChange={(event) => setTrackInventory(event.target.checked)}
+                className="mt-0.5 size-4 accent-[#0A0A0A]"
+              />
+              <span>
+                <span className="block text-sm font-medium text-[#0A0A0A]">
+                  Controlar inventario
+                </span>
+                <span className="block text-[11px] leading-4 text-black/40">
+                  En promociones, el inventario se descuenta de sus componentes.
+                </span>
+              </span>
+            </label>
+          </div>
+
+          {type === 'promotion' ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12px] leading-5 text-amber-800">
+              Después de guardar la promoción, usa el botón de componentes para indicar qué
+              productos la componen y cuántas unidades descuenta cada venta.
+            </p>
+          ) : null}
+
+          {error ? (
+            <div className="rounded-xl border border-black/10 bg-black/[0.03] px-3.5 py-3 text-sm">
+              {error}
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="rounded-xl border-black/10"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting || !sku.trim() || !name.trim()}
+              className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
+            >
+              {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
+              {isEditing ? 'Guardar cambios' : 'Crear producto'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

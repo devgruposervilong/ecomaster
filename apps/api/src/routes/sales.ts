@@ -28,8 +28,8 @@ import {
 import {
   exchangeRates,
   partners,
-  priceListItems,
-  priceLists,
+  channelPrices,
+  channels,
   productComponents,
   products,
   saleItems,
@@ -121,8 +121,8 @@ function serializeSale(row: SaleRecord, isAdmin: boolean): Sale {
     partnerId: row.partnerId,
     partnerName: row.partnerName,
     partnerRif: row.partnerRif,
-    priceListId: row.priceListId,
-    priceListName: row.priceListName,
+    channelId: row.channelId,
+    channelName: row.channelName,
     currency: row.currency,
     usdRate: Number(row.usdRate),
     eurRate: canSeeEur ? Number(row.eurRate) : null,
@@ -233,13 +233,13 @@ async function resolvePartner(db: Db, partnerId: string) {
       rif: partners.rif,
       status: partners.status,
       currency: partners.currency,
-      priceListId: partners.priceListId,
-      priceListName: priceLists.name,
-      priceListStatus: priceLists.status,
-      priceListCurrency: priceLists.currency,
+      channelId: partners.channelId,
+      channelName: channels.name,
+      channelStatus: channels.status,
+      channelCurrency: channels.currency,
     })
     .from(partners)
-    .innerJoin(priceLists, eq(priceLists.id, partners.priceListId))
+    .innerJoin(channels, eq(channels.id, partners.channelId))
     .where(eq(partners.id, partnerId))
     .limit(1)
 
@@ -314,12 +314,12 @@ salesRoutes.get('/partners', async (c) => {
       name: partners.name,
       type: partners.type,
       currency: partners.currency,
-      priceListId: partners.priceListId,
-      priceListName: priceLists.name,
+      channelId: partners.channelId,
+      channelName: channels.name,
       contactPhone: partners.contactPhone,
     })
     .from(partners)
-    .innerJoin(priceLists, eq(priceLists.id, partners.priceListId))
+    .innerJoin(channels, eq(channels.id, partners.channelId))
     .where(eq(partners.status, 'active'))
     .orderBy(partners.name)
 
@@ -392,15 +392,15 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
   const partner = await resolvePartner(db, partnerId)
   if (!partner) throw notFound('No encontramos el aliado de la venta.')
   if (partner.status !== 'active') throw badRequest('El aliado está inactivo.')
-  if (partner.priceListStatus !== 'active') {
-    throw badRequest('La lista de precios del aliado está inactiva.')
+  if (partner.channelStatus !== 'active') {
+    throw badRequest('El canal de precios del aliado está inactivo.')
   }
-  if (partner.currency !== partner.priceListCurrency) {
+  if (partner.currency !== partner.channelCurrency) {
     throw new AppError(
       409,
-      'PRICE_LIST_CURRENCY_MISMATCH',
-      `La lista «${partner.priceListName}» está en ${partner.priceListCurrency}, pero el aliado está en ${partner.currency}. Corrige la configuración antes de vender.`,
-      { priceListCurrency: partner.priceListCurrency, partnerCurrency: partner.currency },
+      'CHANNEL_CURRENCY_MISMATCH',
+      `El canal «${partner.channelName}» está en ${partner.channelCurrency}, pero el aliado está en ${partner.currency}. Corrige la configuración antes de vender.`,
+      { channelCurrency: partner.channelCurrency, partnerCurrency: partner.currency },
     )
   }
 
@@ -424,6 +424,21 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
   }
   const productIds = [...quantities.keys()]
 
+  // Solo el admin puede cobrar a mano cuando el canal no tiene precio activo.
+  const manualPrices = new Map<string, number>()
+  for (const item of body.items) {
+    if (item.unitPrice === undefined) continue
+    if (!isAdmin) {
+      throw forbidden('Solo un administrador puede definir un precio manual en la venta.')
+    }
+
+    const current = manualPrices.get(item.productId)
+    if (current !== undefined && current !== item.unitPrice) {
+      throw badRequest('Un producto tiene dos precios manuales distintos en la misma venta.')
+    }
+    manualPrices.set(item.productId, item.unitPrice)
+  }
+
   const productRows = await db
     .select({
       id: products.id,
@@ -443,15 +458,15 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
 
   const priceRows = await db
     .select({
-      productId: priceListItems.productId,
-      price: priceListItems.price,
-      status: priceListItems.status,
+      productId: channelPrices.productId,
+      price: channelPrices.price,
+      status: channelPrices.status,
     })
-    .from(priceListItems)
+    .from(channelPrices)
     .where(
       and(
-        eq(priceListItems.priceListId, partner.priceListId),
-        inArray(priceListItems.productId, productIds),
+        eq(channelPrices.channelId, partner.channelId),
+        inArray(channelPrices.productId, productIds),
       ),
     )
   const priceByProduct = new Map(priceRows.map((row) => [row.productId, row]))
@@ -459,16 +474,22 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
   for (const productId of productIds) {
     const product = productById.get(productId)!
     const price = priceByProduct.get(productId)
+    const hasActivePrice = Boolean(price && price.status === 'active')
 
     if (product.status !== 'active') {
       throw badRequest(`El producto ${product.name} está inactivo.`)
     }
-    if (!price || price.status !== 'active') {
+    if (hasActivePrice && manualPrices.has(productId)) {
+      throw badRequest(
+        `El producto ${product.name} ya tiene un precio activo en el canal. Actualízalo en Catálogo en lugar de enviar un precio manual.`,
+      )
+    }
+    if (!hasActivePrice && !manualPrices.has(productId)) {
       throw new AppError(
         400,
-        'PRODUCT_NOT_IN_PRICE_LIST',
-        `El producto ${product.name} no está activo en la lista de precios del aliado.`,
-        { productId, priceListId: partner.priceListId },
+        'PRODUCT_WITHOUT_CHANNEL_PRICE',
+        `El producto ${product.name} no tiene un precio activo en el canal del aliado. Un administrador debe indicar un precio manual.`,
+        { productId, channelId: partner.channelId },
       )
     }
   }
@@ -506,7 +527,11 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
 
   const lines = productIds.map((productId) => {
     const product = productById.get(productId)!
-    const price = priceByProduct.get(productId)!
+    const price = priceByProduct.get(productId)
+    const unitPrice =
+      price && price.status === 'active'
+        ? Number(price.price)
+        : manualPrices.get(productId)!
 
     return {
       productId,
@@ -514,7 +539,7 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
       name: product.name,
       type: product.type,
       quantity: quantities.get(productId)!,
-      unitPrice: Number(price.price),
+      unitPrice,
       ivaEnabled: product.ivaEnabled,
     }
   })
@@ -600,8 +625,8 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
     partnerId,
     partnerName: partner.name,
     partnerRif: partner.rif,
-    priceListId: partner.priceListId,
-    priceListName: partner.priceListName,
+    channelId: partner.channelId,
+    channelName: partner.channelName,
     currency: partner.currency,
     usdRate: Number(rate.usdRate),
     eurRate: Number(rate.eurRate),

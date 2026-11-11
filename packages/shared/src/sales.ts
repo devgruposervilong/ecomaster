@@ -31,6 +31,11 @@ export const discountTypeSchema = z.enum(DISCOUNT_TYPES)
 export const createSaleItemSchema = z.object({
   productId: z.string().trim().min(1, 'Selecciona un producto'),
   quantity: z.coerce.number().int('Usa una cantidad entera').positive('La cantidad debe ser mayor a 0'),
+  /**
+   * Solo un administrador puede enviarlo. Se usa cuando el producto no tiene
+   * precio activo en el canal del aliado («se cobra a mano»).
+   */
+  unitPrice: moneyInputSchema.optional(),
 })
 
 export const createSalePaymentSchema = z.object({
@@ -90,8 +95,8 @@ export type Sale = {
   partnerId: string
   partnerName: string
   partnerRif: string | null
-  priceListId: string
-  priceListName: string
+  channelId: string
+  channelName: string
   currency: Currency
   usdRate: number
   eurRate: number | null

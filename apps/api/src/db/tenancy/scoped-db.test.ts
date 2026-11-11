@@ -57,17 +57,17 @@ beforeAll(async () => {
   applyMigrations(sqlite)
   db = drizzle(sqlite, { schema })
 
-  db.insert(schema.priceLists)
+  db.insert(schema.channels)
     .values([
       {
         id: 'pl-a',
-        name: 'Lista Aliado A',
+        name: 'Canal Aliado A',
         currency: 'USD',
         status: 'active',
       },
       {
         id: 'pl-b',
-        name: 'Lista Aliado B',
+        name: 'Canal Aliado B',
         currency: 'EUR',
         status: 'active',
       },
@@ -82,7 +82,7 @@ beforeAll(async () => {
         slug: 'aliado-a',
         type: 'permanente',
         currency: 'USD',
-        priceListId: 'pl-a',
+        channelId: 'pl-a',
       },
       {
         id: 'pb',
@@ -90,7 +90,7 @@ beforeAll(async () => {
         slug: 'aliado-b',
         type: 'bazar',
         currency: 'EUR',
-        priceListId: 'pl-b',
+        channelId: 'pl-b',
       },
     ])
     .run()
@@ -193,17 +193,17 @@ beforeAll(async () => {
     ])
     .run()
 
-  db.insert(schema.priceListItems)
+  db.insert(schema.channelPrices)
     .values([
       {
         id: 'pli-a',
-        priceListId: 'pl-a',
+        channelId: 'pl-a',
         productId: 'prod-a',
         price: 12,
       },
       {
         id: 'pli-b',
-        priceListId: 'pl-b',
+        channelId: 'pl-b',
         productId: 'prod-b',
         price: 25,
       },
@@ -214,7 +214,7 @@ beforeAll(async () => {
     .values([
       {
         id: 'hist-a',
-        priceListId: 'pl-a',
+        channelId: 'pl-a',
         productId: 'prod-a',
         oldPrice: null,
         newPrice: 12,
@@ -224,7 +224,7 @@ beforeAll(async () => {
       },
       {
         id: 'hist-b',
-        priceListId: 'pl-b',
+        channelId: 'pl-b',
         productId: 'prod-b',
         oldPrice: null,
         newPrice: 25,
@@ -242,8 +242,8 @@ beforeAll(async () => {
         partnerId: 'pa',
         partnerName: 'Aliado A',
         partnerRif: null,
-        priceListId: 'pl-a',
-        priceListName: 'Lista Aliado A',
+        channelId: 'pl-a',
+        channelName: 'Canal Aliado A',
         currency: 'USD',
         usdRate: 36.5,
         eurRate: 42,
@@ -272,8 +272,8 @@ beforeAll(async () => {
         partnerId: 'pb',
         partnerName: 'Aliado B',
         partnerRif: null,
-        priceListId: 'pl-b',
-        priceListName: 'Lista Aliado B',
+        channelId: 'pl-b',
+        channelName: 'Canal Aliado B',
         currency: 'EUR',
         usdRate: 36.5,
         eurRate: 42,
@@ -395,7 +395,7 @@ describe('scopeDb', () => {
         slug: 'aliado-c',
         type: 'permanente',
         currency: 'USD',
-        priceListId: 'pl-a',
+        channelId: 'pl-a',
       }),
     ).toThrow(TenancyError)
   })
@@ -573,12 +573,12 @@ describe('scopeDb', () => {
     ).toThrow(TenancyError)
   })
 
-  it('los productos, listas y precios son globales de solo lectura para el aliado', async () => {
+  it('los productos, canales y precios son globales de solo lectura para el aliado', async () => {
     const tdb = scopeDb(db, partnerA)
 
     const productRows = await tdb.select({ id: schema.products.id }).from(schema.products)
-    const listRows = await tdb.select({ id: schema.priceLists.id }).from(schema.priceLists)
-    const itemRows = await tdb.select({ id: schema.priceListItems.id }).from(schema.priceListItems)
+    const listRows = await tdb.select({ id: schema.channels.id }).from(schema.channels)
+    const itemRows = await tdb.select({ id: schema.channelPrices.id }).from(schema.channelPrices)
     const historyRows = await tdb.select({ id: schema.priceHistory.id }).from(schema.priceHistory)
 
     expect(productRows.map((row) => row.id).sort()).toEqual(['prod-a', 'prod-b'])
@@ -594,7 +594,7 @@ describe('scopeDb', () => {
       tdb.insert(schema.products).values({ sku: 'X-1', name: 'Producto X' }),
     ).toThrow(TenancyError)
     expect(() =>
-      tdb.insert(schema.priceLists).values({ name: 'Lista X', currency: 'USD' }),
+      tdb.insert(schema.channels).values({ name: 'Canal X', currency: 'USD' }),
     ).toThrow(TenancyError)
     expect(() =>
       tdb.update(schema.products).set({ name: 'Cambio' }).where(eq(schema.products.id, 'prod-a')),
@@ -669,7 +669,7 @@ describe('scopeDb', () => {
     ).toThrow(/otro aliado/i)
   })
 
-  it('la FK compuesta impide mezclar la moneda del aliado y de su lista', () => {
+  it('la FK compuesta impide mezclar la moneda del aliado y de su canal', () => {
     expect(() =>
       db
         .insert(schema.partners)
@@ -679,7 +679,7 @@ describe('scopeDb', () => {
           slug: 'aliado-c',
           type: 'permanente',
           currency: 'USD',
-          priceListId: 'pl-b',
+          channelId: 'pl-b',
         })
         .run(),
     ).toThrow(/foreign key/i)

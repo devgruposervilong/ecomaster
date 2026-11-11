@@ -13,7 +13,7 @@
  *   3. Escribe los <link> correspondientes en index.html entre los marcadores
  *      BEGIN/END:pwa-splash, para que el HTML nunca se desincronice.
  *
- * Uso: pnpm --filter @tools/web pwa:splash   (o `pnpm build` de assets)
+ * Uso: pnpm --filter @ecomaster/web pwa:splash   (o `pnpm build` de assets)
  *
  * Nota: el bloque de <link> se escribe en una línea por dispositivo; después de
  * regenerar conviene ejecutar `pnpm format` para dejarlo con el formato de

@@ -18,7 +18,7 @@ meRoutes.get('/', async (c) => {
             name: partners.name,
             type: partners.type,
             currency: partners.currency,
-            priceListId: partners.priceListId,
+            channelId: partners.channelId,
             status: partners.status,
           })
           .from(partners)

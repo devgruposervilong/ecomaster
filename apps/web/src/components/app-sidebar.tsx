@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button'
 import { signOutAndReset } from '@/lib/auth'
 import { firstName, initials } from '@/lib/format'
 import type { Me } from '@/lib/queries'
-import { ROLE_LABELS } from '@tools/shared'
+import { ROLE_LABELS, hasModuleAccess, type ModuleKey } from '@ecomaster/shared'
 import { cn } from '@/lib/utils'
 
 type NavItem = {
@@ -31,21 +31,22 @@ type NavItem = {
   icon: LucideIcon
   soon?: boolean
   adminOnly?: boolean
+  module?: ModuleKey
 }
 
 const operationNav: NavItem[] = [
-  { to: '/', label: 'Inicio', icon: LayoutDashboard },
-  { to: '/ventas', label: 'Ventas', icon: ShoppingCart, soon: true },
-  { to: '/catalogo', label: 'Catálogo', icon: Package, soon: true },
-  { to: '/inventario', label: 'Inventario', icon: Boxes, soon: true },
-  { to: '/finanzas', label: 'Finanzas', icon: Wallet, soon: true },
-  { to: '/reportes', label: 'Reportes', icon: BarChart3, soon: true },
+  { to: '/', label: 'Inicio', icon: LayoutDashboard, module: 'dashboard' },
+  { to: '/ventas', label: 'Ventas', icon: ShoppingCart, soon: true, module: 'sales' },
+  { to: '/catalogo', label: 'Catálogo', icon: Package, module: 'catalog' },
+  { to: '/inventario', label: 'Inventario', icon: Boxes, soon: true, module: 'inventory' },
+  { to: '/finanzas', label: 'Finanzas', icon: Wallet, soon: true, module: 'finance' },
+  { to: '/reportes', label: 'Reportes', icon: BarChart3, soon: true, module: 'reports' },
 ]
 
 const adminNav: NavItem[] = [
   { to: '/admin/aliados', label: 'Aliados', icon: Handshake, adminOnly: true },
   { to: '/admin/usuarios', label: 'Usuarios', icon: Users, adminOnly: true },
-  { to: '/tienda', label: 'Tienda online', icon: Globe2, soon: true },
+  { to: '/tienda', label: 'Tienda online', icon: Globe2, soon: true, module: 'store' },
   { to: '/ajustes', label: 'Ajustes', icon: Settings },
 ]
 
@@ -105,6 +106,11 @@ function SidebarBody({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const isAdmin = me.user.role === 'admin'
+  const canSeeItem = (item: NavItem) =>
+    (!item.adminOnly || isAdmin) &&
+    (!item.module || hasModuleAccess(me.user.role, me.user.modules, item.module))
+  const operationItems = operationNav.filter(canSeeItem)
+  const adminItems = adminNav.filter(canSeeItem)
 
   const handleSignOut = async () => {
     await signOutAndReset(queryClient)
@@ -113,15 +119,13 @@ function SidebarBody({
 
   const renderSection = (items: NavItem[]) => (
     <div className="space-y-1">
-      {items
-        .filter((item) => !item.adminOnly || isAdmin)
-        .map((item) => {
-          const active =
-            item.to === '/'
-              ? pathname === '/'
-              : pathname === item.to || pathname.startsWith(`${item.to}/`)
-          return <NavLink key={item.to} item={item} active={active} onNavigate={onNavigate} />
-        })}
+      {items.map((item) => {
+        const active =
+          item.to === '/'
+            ? pathname === '/'
+            : pathname === item.to || pathname.startsWith(`${item.to}/`)
+        return <NavLink key={item.to} item={item} active={active} onNavigate={onNavigate} />
+      })}
     </div>
   )
 
@@ -135,19 +139,23 @@ function SidebarBody({
       </div>
 
       <nav className="mt-8 flex-1 space-y-7 overflow-y-auto px-0.5">
-        <div>
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/30">
-            Operación
-          </p>
-          {renderSection(operationNav)}
-        </div>
+        {operationItems.length > 0 ? (
+          <div>
+            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/30">
+              Operación
+            </p>
+            {renderSection(operationItems)}
+          </div>
+        ) : null}
 
-        <div>
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/30">
-            Administración
-          </p>
-          {renderSection(adminNav)}
-        </div>
+        {adminItems.length > 0 ? (
+          <div>
+            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/30">
+              Administración
+            </p>
+            {renderSection(adminItems)}
+          </div>
+        ) : null}
       </nav>
 
       <div className="mt-5 rounded-2xl border border-black/10 bg-white p-3">

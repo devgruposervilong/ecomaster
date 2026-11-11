@@ -145,7 +145,7 @@ function rateToVes(currency: Currency, usdRate: number, eurRate: number) {
 }
 
 /**
- * Calcula la venta completa. La moneda de la lista es la fuente de verdad:
+ * Calcula la venta completa. La moneda del canal es la fuente de verdad:
  * primero se obtiene VES con la tasa de esa moneda y luego la tercera moneda
  * dividiendo VES entre su tasa. Nunca se cruza directamente USD ↔ EUR.
  */

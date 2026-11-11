@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from '@tanstack/react-form'
 import { Handshake, Loader2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Partner } from '@tools/shared'
+import type { Partner } from '@ecomaster/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch, errorMessage, jsonBody } from '@/lib/api'
+import { channelOptionsQuery } from '@/lib/queries'
 
 export function PartnerFormDialog({
   open,
@@ -37,6 +38,7 @@ export function PartnerFormDialog({
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
   const isEditing = Boolean(partner)
+  const { data: channels = [] } = useQuery(channelOptionsQuery())
 
   const form = useForm({
     defaultValues: {
@@ -45,6 +47,7 @@ export function PartnerFormDialog({
       rif: partner?.rif ?? '',
       type: (partner?.type ?? 'permanente') as 'permanente' | 'bazar',
       currency: (partner?.currency ?? 'USD') as 'USD' | 'EUR' | 'VES',
+      channelId: partner?.channelId ?? '',
       status: (partner?.status ?? 'active') as 'active' | 'inactive',
       profitWarehouseCode: partner?.profitWarehouseCode ?? '',
       contactName: partner?.contactName ?? '',
@@ -65,6 +68,7 @@ export function PartnerFormDialog({
               rif: value.rif.trim().toUpperCase(),
               type: value.type,
               currency: value.currency,
+              channelId: value.channelId,
               status: value.status,
               profitWarehouseCode: value.profitWarehouseCode.trim(),
               contactName: value.contactName.trim(),
@@ -82,6 +86,7 @@ export function PartnerFormDialog({
               rif: value.rif.trim().toUpperCase(),
               type: value.type,
               currency: value.currency,
+              channelId: value.channelId,
               profitWarehouseCode: value.profitWarehouseCode.trim(),
               contactName: value.contactName.trim(),
               contactPhone: value.contactPhone.trim(),
@@ -93,6 +98,7 @@ export function PartnerFormDialog({
 
         await queryClient.invalidateQueries({ queryKey: ['partners'] })
         await queryClient.invalidateQueries({ queryKey: ['partner-options'] })
+        await queryClient.invalidateQueries({ queryKey: ['sales-partner-options'] })
         await queryClient.invalidateQueries({ queryKey: ['users'] })
         await queryClient.invalidateQueries({ queryKey: ['invites'] })
         await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
@@ -114,6 +120,7 @@ export function PartnerFormDialog({
       rif: partner?.rif ?? '',
       type: (partner?.type ?? 'permanente') as 'permanente' | 'bazar',
       currency: (partner?.currency ?? 'USD') as 'USD' | 'EUR' | 'VES',
+      channelId: partner?.channelId ?? '',
       status: (partner?.status ?? 'active') as 'active' | 'inactive',
       profitWarehouseCode: partner?.profitWarehouseCode ?? '',
       contactName: partner?.contactName ?? '',
@@ -238,7 +245,10 @@ export function PartnerFormDialog({
                   <Label>Moneda base</Label>
                   <Select
                     value={field.state.value}
-                    onValueChange={(value) => field.handleChange(value as 'USD' | 'EUR' | 'VES')}
+                    onValueChange={(value) => {
+                      field.handleChange(value as 'USD' | 'EUR' | 'VES')
+                      form.setFieldValue('channelId', '')
+                    }}
                   >
                     <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
                       <SelectValue />
@@ -288,6 +298,49 @@ export function PartnerFormDialog({
               </div>
             )}
           </div>
+
+          <form.Field
+            name="channelId"
+            children={(field) => {
+              const options = channels.filter(
+                (channel) =>
+                  channel.currency === form.state.values.currency &&
+                  (channel.status === 'active' || channel.id === partner?.channelId),
+              )
+
+              return (
+                <div className="space-y-2">
+                  <Label>Canal de precios</Label>
+                  <Select
+                    value={field.state.value}
+                    onValueChange={(value) => field.handleChange(value)}
+                    disabled={options.length === 0}
+                  >
+                    <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
+                      <SelectValue placeholder="Selecciona un canal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((channel) => (
+                        <SelectItem key={channel.id} value={channel.id}>
+                          {channel.name} · {channel.currency}
+                          {channel.status === 'inactive' ? ' · inactivo' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] leading-4 text-black/40">
+                    El canal debe estar en la misma moneda que el aliado ({form.state.values.currency}).
+                    Varios aliados pueden compartir el mismo canal.
+                  </p>
+                  {options.length === 0 ? (
+                    <p className="text-[11px] font-medium text-red-600">
+                      No hay canales en {form.state.values.currency}. Crea uno en Catálogo antes de guardar.
+                    </p>
+                  ) : null}
+                </div>
+              )
+            }}
+          />
 
           <form.Field
             name="profitWarehouseCode"
@@ -400,11 +453,13 @@ export function PartnerFormDialog({
               Cancelar
             </Button>
             <form.Subscribe
-              selector={(state) => [state.canSubmit, state.isSubmitting] as const}
-              children={([canSubmit, isSubmitting]) => (
+              selector={(state) =>
+                [state.canSubmit, state.isSubmitting, state.values.channelId] as const
+              }
+              children={([canSubmit, isSubmitting, channelId]) => (
                 <Button
                   type="submit"
-                  disabled={!canSubmit || isSubmitting}
+                  disabled={!canSubmit || isSubmitting || !channelId}
                   className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
                 >
                   {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}

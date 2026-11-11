@@ -3,7 +3,7 @@ import { defineChart, lineY } from '@tanstack/charts'
 import { Chart } from '@tanstack/charts/react'
 import { scaleLinear } from '@tanstack/charts/scales/linear'
 import { scalePoint } from '@tanstack/charts/scales/point'
-import type { DashboardSummary } from '@tools/shared'
+import type { DashboardSummary } from '@ecomaster/shared'
 
 export function SalesChart({ data }: { data: DashboardSummary['salesSeries'] }) {
   const definition = useMemo(() => {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { KeyRound, LogOut, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
-import { ROLE_LABELS } from '@tools/shared'
+import { ROLE_LABELS, isGlobalRole } from '@ecomaster/shared'
 import { ChangePasswordDialog } from '@/components/change-password-dialog'
 import { PageHeader } from '@/components/page-header'
 import { PwaInstallCard } from '@/components/pwa-install-card'
@@ -23,6 +23,7 @@ function SettingsPage() {
   const queryClient = useQueryClient()
   const [passwordOpen, setPasswordOpen] = useState(false)
   const isAdmin = me.user.role === 'admin'
+  const isGlobal = isGlobalRole(me.user.role)
 
   const handleSignOut = async () => {
     await signOutAndReset(queryClient)
@@ -77,7 +78,7 @@ function SettingsPage() {
                   Alcance
                 </p>
                 <p className="mt-2 text-sm font-medium text-[#0A0A0A]">
-                  {isAdmin ? 'Todos los aliados' : 'Solo tu aliado'}
+                  {isGlobal ? 'Todos los aliados' : 'Solo tu aliado'}
                 </p>
               </div>
             </div>
@@ -157,12 +158,18 @@ function SettingsPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-[#0A0A0A]">
-                {isAdmin ? 'Acceso global' : 'Acceso aislado por aliado'}
+                {isAdmin
+                  ? 'Acceso global'
+                  : isGlobal
+                    ? 'Acceso global por módulos'
+                    : 'Acceso aislado por aliado'}
               </p>
               <p className="mt-1 text-xs leading-5 text-black/45">
                 {isAdmin
                   ? 'Como administrador puedes gestionar todos los aliados, usuarios e invitaciones. Cada acción queda registrada en la actividad del backoffice.'
-                  : 'Tu usuario solo puede ver la información de tu aliado. Las ventas, el inventario y las finanzas se incorporarán respetando este aislamiento.'}
+                  : isGlobal
+                    ? 'Puedes consultar la operación de todos los aliados en los módulos habilitados por el administrador. No puedes gestionar aliados ni usuarios.'
+                    : 'Tu usuario solo puede ver la información de tu aliado. Las ventas, el inventario y las finanzas se incorporarán respetando este aislamiento.'}
               </p>
             </div>
           </CardContent>

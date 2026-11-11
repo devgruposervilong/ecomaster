@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useForm } from '@tanstack/react-form'
 import { KeyRound, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { UserRow } from '@tools/shared'
+import type { UserRow } from '@ecomaster/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

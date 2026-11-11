@@ -3,7 +3,7 @@ import { createFileRoute, Navigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { createColumnHelper, tableFeatures, useTable } from '@tanstack/react-table'
 import { Handshake, Pencil, Plus, Search } from 'lucide-react'
-import type { Partner } from '@tools/shared'
+import type { Partner } from '@ecomaster/shared'
 import { EmptyState } from '@/components/empty-state'
 import { PageHeader } from '@/components/page-header'
 import { PartnerFormDialog } from '@/components/partners/partner-form-dialog'
@@ -87,7 +87,7 @@ function PartnersPageContent() {
                     {partner.alias ?? 'Sin alias'} · {partner.rif ?? 'Sin RIF'}
                   </p>
                   <p className="mt-0.5 hidden truncate text-[11px] text-black/40 lg:block xl:hidden">
-                    {partnerTypeLabel(partner.type)} · {partner.currency}
+                    {partnerTypeLabel(partner.type)} · {partner.currency} · {partner.channelName}
                   </p>
                 </div>
               </div>

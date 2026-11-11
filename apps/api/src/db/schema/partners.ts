@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { newId } from '../../lib/ids'
-import { priceLists } from './price-lists'
+import { channels } from './channels'
 
 export const partners = sqliteTable(
   'partners',
@@ -13,7 +13,7 @@ export const partners = sqliteTable(
     slug: text('slug').notNull().unique(),
     type: text('type', { enum: ['permanente', 'bazar'] }).notNull(),
     currency: text('currency', { enum: ['USD', 'EUR', 'VES'] }).notNull(),
-    priceListId: text('price_list_id').notNull(),
+    channelId: text('channel_id').notNull(),
     status: text('status', { enum: ['active', 'inactive'] })
       .notNull()
       .default('active'),
@@ -32,12 +32,12 @@ export const partners = sqliteTable(
   },
   (table) => [
     foreignKey({
-      columns: [table.priceListId, table.currency],
-      foreignColumns: [priceLists.id, priceLists.currency],
+      columns: [table.channelId, table.currency],
+      foreignColumns: [channels.id, channels.currency],
       name: 'partners_price_list_currency_fk',
     }).onDelete('restrict'),
     index('partners_status_idx').on(table.status),
-    index('partners_price_list_idx').on(table.priceListId),
+    index('partners_price_list_idx').on(table.channelId),
   ],
 )
 

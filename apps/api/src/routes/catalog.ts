@@ -12,28 +12,31 @@ import {
 } from 'drizzle-orm'
 import { Hono, type Context } from 'hono'
 import {
-  createPriceListSchema,
+  createChannelSchema,
   createProductSchema,
   isGlobalRole,
-  listPriceListsQuerySchema,
+  listChannelsQuerySchema,
   listProductsQuerySchema,
+  setChannelPriceSchema,
   setProductComponentsSchema,
-  syncPriceListItemsSchema,
-  updatePriceListSchema,
+  syncChannelPricesSchema,
+  updateChannelSchema,
   updateProductSchema,
   type CatalogProduct,
+  type Channel,
+  type ChannelPrice,
+  type ChannelPriceStatus,
   type PriceHistoryEntry,
-  type PriceList,
-  type PriceListItem,
   type Product,
+  type ProductChannelPrice,
   type ProductComponent,
   type ProductType,
 } from '@ecomaster/shared'
 import {
+  channels,
+  channelPrices,
   partners,
   priceHistory,
-  priceListItems,
-  priceLists,
   productComponents,
   products,
   saleItems,
@@ -76,6 +79,8 @@ type ProductRow = {
   updatedAt: Date
 }
 
+type ChannelRow = Pick<Channel, 'id' | 'name' | 'currency' | 'status'>
+
 function nullable(value: string | undefined | null) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
@@ -99,48 +104,51 @@ function serializeProduct(row: ProductRow): Product {
   }
 }
 
-async function findPartnerPriceListId(db: Db, partnerId: string | null) {
+async function findPartnerChannelId(db: Db, partnerId: string | null) {
   if (!partnerId) return null
 
   const [row] = await db
-    .select({ priceListId: partners.priceListId })
+    .select({ channelId: partners.channelId })
     .from(partners)
     .where(eq(partners.id, partnerId))
     .limit(1)
 
-  return row?.priceListId ?? null
+  return row?.channelId ?? null
 }
 
-async function resolveListId(c: Context<AppEnv>, requested?: string) {
+async function resolveChannelId(c: Context<AppEnv>, requested?: string) {
   const session = c.get('session')
 
   if (!session) return requested ?? null
   if (isGlobalRole(session.user.role)) return requested ?? null
 
-  return findPartnerPriceListId(c.get('db'), session.user.partnerId ?? null)
+  return findPartnerChannelId(c.get('db'), session.user.partnerId ?? null)
 }
 
-async function assertListAccess(c: Context<AppEnv>, listId: string) {
+async function assertChannelAccess(c: Context<AppEnv>, channelId: string) {
   const session = c.get('session')
 
   if (!session) throw forbidden('Debes iniciar sesión.')
 
   if (isGlobalRole(session.user.role)) {
-    const [list] = await c
+    const [channel] = await c
       .get('db')
-      .select({ id: priceLists.id })
-      .from(priceLists)
-      .where(eq(priceLists.id, listId))
+      .select({ id: channels.id })
+      .from(channels)
+      .where(eq(channels.id, channelId))
       .limit(1)
 
-    if (!list) throw notFound('No encontramos esta lista de precios.')
+    if (!channel) throw notFound('No encontramos este canal de precios.')
     return
   }
 
-  const partnerListId = await findPartnerPriceListId(c.get('db'), session.user.partnerId ?? null)
+  const partnerChannelId = await findPartnerChannelId(
+    c.get('db'),
+    session.user.partnerId ?? null,
+  )
 
-  if (partnerListId !== listId) {
-    throw forbidden('No tienes acceso a esta lista de precios.')
+  if (partnerChannelId !== channelId) {
+    throw forbidden('No tienes acceso a este canal de precios.')
   }
 }
 
@@ -149,67 +157,63 @@ async function findProduct(db: Db, id: string) {
   return row ? serializeProduct(row) : null
 }
 
-async function assertPartnerProductAccess(
-  c: Context<AppEnv>,
-  product: Product,
-) {
+async function assertPartnerProductAccess(c: Context<AppEnv>, product: Product) {
   const session = c.get('session')
 
   if (!session) throw forbidden('Debes iniciar sesión.')
   if (isGlobalRole(session.user.role)) return
 
-  const listId = await findPartnerPriceListId(c.get('db'), session.user.partnerId ?? null)
+  const channelId = await findPartnerChannelId(c.get('db'), session.user.partnerId ?? null)
 
-  if (!listId || product.status !== 'active') {
-    throw notFound('No encontramos este producto en tu lista de precios.')
+  if (!channelId || product.status !== 'active') {
+    throw notFound('No encontramos este producto en tu canal de precios.')
   }
 
   const [item] = await c
     .get('db')
-    .select({ status: priceListItems.status })
-    .from(priceListItems)
+    .select({ status: channelPrices.status })
+    .from(channelPrices)
     .where(
-      and(eq(priceListItems.priceListId, listId), eq(priceListItems.productId, product.id)),
+      and(eq(channelPrices.channelId, channelId), eq(channelPrices.productId, product.id)),
     )
     .limit(1)
 
   if (!item || item.status !== 'active') {
-    throw notFound('No encontramos este producto en tu lista de precios.')
+    throw notFound('No encontramos este producto en tu canal de precios.')
   }
 }
 
-async function findPriceList(db: Db, id: string) {
+async function findChannel(db: Db, id: string) {
   const [row] = await db
     .select({
-      id: priceLists.id,
-      name: priceLists.name,
-      currency: priceLists.currency,
-      status: priceLists.status,
-      description: priceLists.description,
-      itemCount: sql<number>`(
-        select count(*) from ${priceListItems}
-        where ${priceListItems.priceListId} = ${priceLists.id}
-      )`,
-      createdAt: priceLists.createdAt,
-      updatedAt: priceLists.updatedAt,
+      id: channels.id,
+      name: channels.name,
+      currency: channels.currency,
+      status: channels.status,
+      description: channels.description,
+      itemCount: count(channelPrices.id),
+      createdAt: channels.createdAt,
+      updatedAt: channels.updatedAt,
     })
-    .from(priceLists)
-    .where(eq(priceLists.id, id))
+    .from(channels)
+    .leftJoin(channelPrices, eq(channelPrices.channelId, channels.id))
+    .where(eq(channels.id, id))
+    .groupBy(channels.id)
     .limit(1)
 
-  return row ? serializePriceList(row) : null
+  return row ? serializeChannel(row) : null
 }
 
-function serializePriceList(row: {
+function serializeChannel(row: {
   id: string
   name: string
-  currency: PriceList['currency']
-  status: PriceList['status']
+  currency: Channel['currency']
+  status: Channel['status']
   description: string | null
   itemCount: number
   createdAt: Date
   updatedAt: Date
-}): PriceList {
+}): Channel {
   return {
     ...row,
     itemCount: Number(row.itemCount ?? 0),
@@ -218,20 +222,20 @@ function serializePriceList(row: {
   }
 }
 
-function serializePriceListItem(row: {
+function serializeChannelPrice(row: {
   id: string
-  priceListId: string
+  channelId: string
   productId: string
   productSku: string
   productName: string
   productType: ProductType
   productIvaEnabled: boolean
   price: number
-  status: PriceListItem['status']
+  status: ChannelPriceStatus
   position: number
   createdAt: Date
   updatedAt: Date
-}): PriceListItem {
+}): ChannelPrice {
   return {
     ...row,
     price: Number(row.price),
@@ -242,7 +246,7 @@ function serializePriceListItem(row: {
 
 function serializeHistory(row: {
   id: string
-  priceListId: string
+  channelId: string
   productId: string
   productSku: string
   productName: string
@@ -287,8 +291,8 @@ async function assertUniqueProduct(
 async function assertProductUnused(db: Db, productId: string) {
   const [priceItems] = await db
     .select({ total: count() })
-    .from(priceListItems)
-    .where(eq(priceListItems.productId, productId))
+    .from(channelPrices)
+    .where(eq(channelPrices.productId, productId))
   const [sold] = await db
     .select({ total: count() })
     .from(saleItems)
@@ -314,12 +318,95 @@ async function assertProductUnused(db: Db, productId: string) {
   }
 }
 
+async function listMatrixChannels(db: Db, isPartner: boolean, partnerChannelId: string | null) {
+  if (isPartner) {
+    if (!partnerChannelId) return [] as ChannelRow[]
+
+    return db
+      .select({
+        id: channels.id,
+        name: channels.name,
+        currency: channels.currency,
+        status: channels.status,
+      })
+      .from(channels)
+      .where(eq(channels.id, partnerChannelId))
+  }
+
+  return db
+    .select({
+      id: channels.id,
+      name: channels.name,
+      currency: channels.currency,
+      status: channels.status,
+    })
+    .from(channels)
+    .where(eq(channels.status, 'active'))
+    .orderBy(
+      sql`case when lower(${channels.name}) like 'principal%' then 0 else 1 end`,
+      asc(channels.name),
+    )
+}
+
+async function buildProductPrices(
+  db: Db,
+  productIds: string[],
+  channelRows: ChannelRow[],
+) {
+  const byProduct = new Map<string, ProductChannelPrice[]>()
+
+  if (productIds.length === 0 || channelRows.length === 0) {
+    return byProduct
+  }
+
+  const rows = await db
+    .select({
+      id: channelPrices.id,
+      channelId: channelPrices.channelId,
+      productId: channelPrices.productId,
+      price: channelPrices.price,
+      status: channelPrices.status,
+      position: channelPrices.position,
+    })
+    .from(channelPrices)
+    .where(
+      and(
+        inArray(channelPrices.productId, productIds),
+        inArray(
+          channelPrices.channelId,
+          channelRows.map((channel) => channel.id),
+        ),
+      ),
+    )
+
+  const byKey = new Map(rows.map((row) => [`${row.productId}:${row.channelId}`, row]))
+
+  for (const productId of productIds) {
+    const prices = channelRows.map((channel): ProductChannelPrice => {
+      const item = byKey.get(`${productId}:${channel.id}`)
+
+      return {
+        channelId: channel.id,
+        channelName: channel.name,
+        channelCurrency: channel.currency,
+        itemId: item?.id ?? null,
+        price: item ? Number(item.price) : null,
+        status: item?.status ?? null,
+      }
+    })
+
+    byProduct.set(productId, prices)
+  }
+
+  return byProduct
+}
+
 catalogRoutes.get('/products', queryParams(listProductsQuerySchema), async (c) => {
-  const { search, status, type, priceListId, page, pageSize } = c.req.valid('query')
+  const { search, status, type, channelId, page, pageSize } = c.req.valid('query')
   const db = c.get('db')
   const session = c.get('session')
-  const listId = await resolveListId(c, priceListId)
   const isPartner = !isGlobalRole(session?.user.role)
+  const resolvedChannelId = await resolveChannelId(c, channelId)
   const conditions: SQL[] = []
 
   if (search) {
@@ -335,19 +422,19 @@ catalogRoutes.get('/products', queryParams(listProductsQuerySchema), async (c) =
   if (status) conditions.push(eq(products.status, status))
   if (type) conditions.push(eq(products.type, type))
   if (isPartner) conditions.push(eq(products.status, 'active'))
-  if (isPartner && !listId) {
+  if (isPartner && !resolvedChannelId) {
     return c.json({
       data: [],
       meta: { page, pageSize, total: 0, totalPages: 1 },
     })
   }
-  if (listId) {
+  if (isPartner && resolvedChannelId) {
     conditions.push(
       sql`exists (
-        select 1 from ${priceListItems}
-        where ${priceListItems.priceListId} = ${listId}
-          and ${priceListItems.productId} = ${products.id}
-          and (${isPartner ? sql`${priceListItems.status} = 'active'` : sql`1 = 1`})
+        select 1 from ${channelPrices}
+        where ${channelPrices.channelId} = ${resolvedChannelId}
+          and ${channelPrices.productId} = ${products.id}
+          and ${channelPrices.status} = 'active'
       )`,
     )
   }
@@ -356,62 +443,36 @@ catalogRoutes.get('/products', queryParams(listProductsQuerySchema), async (c) =
   const [totalRow] = await db.select({ total: count() }).from(products).where(where)
   const total = Number(totalRow?.total ?? 0)
 
-  const baseQuery = db.select(productSelection).from(products)
-  const rows = await baseQuery
+  const rows = await db
+    .select(productSelection)
+    .from(products)
     .where(where)
     .orderBy(asc(products.name))
     .limit(pageSize)
     .offset((page - 1) * pageSize)
 
-  let priceByProduct = new Map<
-    string,
-    { id: string; price: number; status: PriceListItem['status']; position: number }
-  >()
-
-  if (listId) {
-    const ids = rows.map((row) => row.id)
-    if (ids.length > 0) {
-      const items = await db
-        .select({
-          id: priceListItems.id,
-          productId: priceListItems.productId,
-          price: priceListItems.price,
-          status: priceListItems.status,
-          position: priceListItems.position,
-        })
-        .from(priceListItems)
-        .where(
-          and(
-            eq(priceListItems.priceListId, listId),
-            inArray(priceListItems.productId, ids),
-          ),
-        )
-
-      priceByProduct = new Map(
-        items.map((item) => [
-          item.productId,
-          {
-            id: item.id,
-            price: Number(item.price),
-            status: item.status,
-            position: item.position,
-          },
-        ]),
-      )
-    }
-  }
+  const channelRows = await listMatrixChannels(db, isPartner, resolvedChannelId)
+  const pricesByProduct = await buildProductPrices(
+    db,
+    rows.map((row) => row.id),
+    channelRows,
+  )
 
   return c.json({
     data: rows.map((row): CatalogProduct => {
       const product = serializeProduct(row)
-      const price = priceByProduct.get(row.id)
+      const prices = pricesByProduct.get(row.id) ?? []
+      const resolved = resolvedChannelId
+        ? prices.find((price) => price.channelId === resolvedChannelId)
+        : undefined
 
       return {
         ...product,
-        priceItemId: price?.id ?? null,
-        price: price?.price ?? null,
-        priceStatus: price?.status ?? null,
-        position: price?.position ?? 0,
+        priceItemId: resolved?.itemId ?? null,
+        price: resolved?.price ?? null,
+        priceStatus: resolved?.status ?? null,
+        position: 0,
+        prices,
       }
     }),
     meta: {
@@ -434,36 +495,19 @@ catalogRoutes.get('/products/:id', async (c) => {
 
   const session = c.get('session')
   const isPartner = !isGlobalRole(session?.user.role)
-  const listId = await resolveListId(c, c.req.query('priceListId'))
-  let price: number | null = null
-  let priceItemId: string | null = null
-  let priceStatus: PriceListItem['status'] | null = null
-  let position = 0
+  const partnerChannelId = isPartner
+    ? await findPartnerChannelId(db, session?.user.partnerId ?? null)
+    : null
+  const resolvedChannelId = await resolveChannelId(c, c.req.query('channelId'))
+  const channelRows = await listMatrixChannels(db, isPartner, partnerChannelId)
+  const pricesByProduct = await buildProductPrices(db, [id], channelRows)
+  const prices = pricesByProduct.get(id) ?? []
+  const resolved = resolvedChannelId
+    ? prices.find((price) => price.channelId === resolvedChannelId)
+    : undefined
 
-  if (listId) {
-    const [item] = await db
-      .select({
-        id: priceListItems.id,
-        price: priceListItems.price,
-        status: priceListItems.status,
-        position: priceListItems.position,
-      })
-      .from(priceListItems)
-      .where(
-        and(eq(priceListItems.priceListId, listId), eq(priceListItems.productId, id)),
-      )
-      .limit(1)
-
-    if (isPartner && (!item || item.status !== 'active')) {
-      throw notFound('No encontramos este producto en tu lista de precios.')
-    }
-
-    if (item) {
-      price = Number(item.price)
-      priceItemId = item.id
-      priceStatus = item.status
-      position = item.position
-    }
+  if (isPartner && resolvedChannelId && (!resolved?.itemId || resolved.status !== 'active')) {
+    throw notFound('No encontramos este producto en tu canal de precios.')
   }
 
   const components = await db
@@ -483,10 +527,11 @@ catalogRoutes.get('/products/:id', async (c) => {
 
   const detail: CatalogProduct & { components: ProductComponent[] } = {
     ...product,
-    priceItemId,
-    price,
-    priceStatus,
-    position,
+    priceItemId: resolved?.itemId ?? null,
+    price: resolved?.price ?? null,
+    priceStatus: resolved?.status ?? null,
+    position: 0,
+    prices,
     components,
   }
 
@@ -496,18 +541,18 @@ catalogRoutes.get('/products/:id', async (c) => {
 catalogRoutes.get('/products/:id/history', async (c) => {
   const db = c.get('db')
   const id = c.req.param('id')
-  const listId = await resolveListId(c, c.req.query('priceListId'))
+  const channelId = await resolveChannelId(c, c.req.query('channelId'))
 
-  if (!listId) {
-    throw badRequest('Selecciona una lista de precios para ver el historial.')
+  if (!channelId) {
+    throw badRequest('Selecciona un canal de precios para ver el historial.')
   }
 
-  await assertListAccess(c, listId)
+  await assertChannelAccess(c, channelId)
 
   const rows = await db
     .select({
       id: priceHistory.id,
-      priceListId: priceHistory.priceListId,
+      channelId: priceHistory.channelId,
       productId: priceHistory.productId,
       productSku: products.sku,
       productName: products.name,
@@ -520,7 +565,7 @@ catalogRoutes.get('/products/:id/history', async (c) => {
     })
     .from(priceHistory)
     .innerJoin(products, eq(products.id, priceHistory.productId))
-    .where(and(eq(priceHistory.productId, id), eq(priceHistory.priceListId, listId)))
+    .where(and(eq(priceHistory.productId, id), eq(priceHistory.channelId, channelId)))
     .orderBy(desc(priceHistory.createdAt))
     .limit(200)
 
@@ -724,87 +769,92 @@ catalogRoutes.put(
   },
 )
 
-catalogRoutes.get('/price-lists/options', async (c) => {
+catalogRoutes.get('/channels/options', async (c) => {
   const db = c.get('db')
   const session = c.get('session')
   const currency = c.req.query('currency')
   const status = c.req.query('status')
   const isPartner = !isGlobalRole(session?.user.role)
-  const partnerListId = isPartner
-    ? await findPartnerPriceListId(db, session?.user.partnerId ?? null)
+  const partnerChannelId = isPartner
+    ? await findPartnerChannelId(db, session?.user.partnerId ?? null)
     : null
   const conditions: SQL[] = []
 
-  if (status) conditions.push(eq(priceLists.status, status as PriceList['status']))
-  if (currency) conditions.push(eq(priceLists.currency, currency as PriceList['currency']))
+  if (status) conditions.push(eq(channels.status, status as Channel['status']))
+  if (currency) conditions.push(eq(channels.currency, currency as Channel['currency']))
   if (isPartner) {
-    if (!partnerListId) return c.json({ data: [] })
-    conditions.push(eq(priceLists.id, partnerListId))
+    if (!partnerChannelId) return c.json({ data: [] })
+    conditions.push(eq(channels.id, partnerChannelId))
   }
 
   const rows = await db
     .select({
-      id: priceLists.id,
-      name: priceLists.name,
-      currency: priceLists.currency,
-      status: priceLists.status,
+      id: channels.id,
+      name: channels.name,
+      currency: channels.currency,
+      status: channels.status,
     })
-    .from(priceLists)
+    .from(channels)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(asc(priceLists.name))
+    .orderBy(
+      sql`case when lower(${channels.name}) like 'principal%' then 0 else 1 end`,
+      asc(channels.name),
+    )
 
   return c.json({ data: rows })
 })
 
-catalogRoutes.get('/price-lists', queryParams(listPriceListsQuerySchema), async (c) => {
+catalogRoutes.get('/channels', queryParams(listChannelsQuerySchema), async (c) => {
   const { search, status, currency, page, pageSize } = c.req.valid('query')
   const db = c.get('db')
   const session = c.get('session')
   const isPartner = !isGlobalRole(session?.user.role)
-  const partnerListId = isPartner
-    ? await findPartnerPriceListId(db, session?.user.partnerId ?? null)
+  const partnerChannelId = isPartner
+    ? await findPartnerChannelId(db, session?.user.partnerId ?? null)
     : null
   const conditions: SQL[] = []
 
-  if (search) conditions.push(like(priceLists.name, `%${search}%`))
-  if (status) conditions.push(eq(priceLists.status, status))
-  if (currency) conditions.push(eq(priceLists.currency, currency))
+  if (search) conditions.push(like(channels.name, `%${search}%`))
+  if (status) conditions.push(eq(channels.status, status))
+  if (currency) conditions.push(eq(channels.currency, currency))
   if (isPartner) {
-    if (!partnerListId) {
+    if (!partnerChannelId) {
       return c.json({
         data: [],
         meta: { page, pageSize, total: 0, totalPages: 1 },
       })
     }
-    conditions.push(eq(priceLists.id, partnerListId))
+    conditions.push(eq(channels.id, partnerChannelId))
   }
 
   const where = conditions.length > 0 ? and(...conditions) : undefined
-  const [totalRow] = await db.select({ total: count() }).from(priceLists).where(where)
+  const [totalRow] = await db.select({ total: count() }).from(channels).where(where)
   const total = Number(totalRow?.total ?? 0)
 
   const rows = await db
     .select({
-      id: priceLists.id,
-      name: priceLists.name,
-      currency: priceLists.currency,
-      status: priceLists.status,
-      description: priceLists.description,
-      itemCount: sql<number>`(
-        select count(*) from ${priceListItems}
-        where ${priceListItems.priceListId} = ${priceLists.id}
-      )`,
-      createdAt: priceLists.createdAt,
-      updatedAt: priceLists.updatedAt,
+      id: channels.id,
+      name: channels.name,
+      currency: channels.currency,
+      status: channels.status,
+      description: channels.description,
+      itemCount: count(channelPrices.id),
+      createdAt: channels.createdAt,
+      updatedAt: channels.updatedAt,
     })
-    .from(priceLists)
+    .from(channels)
+    .leftJoin(channelPrices, eq(channelPrices.channelId, channels.id))
     .where(where)
-    .orderBy(asc(priceLists.name))
+    .groupBy(channels.id)
+    .orderBy(
+      sql`case when lower(${channels.name}) like 'principal%' then 0 else 1 end`,
+      asc(channels.name),
+    )
     .limit(pageSize)
     .offset((page - 1) * pageSize)
 
   return c.json({
-    data: rows.map(serializePriceList),
+    data: rows.map(serializeChannel),
     meta: {
       page,
       pageSize,
@@ -814,31 +864,31 @@ catalogRoutes.get('/price-lists', queryParams(listPriceListsQuerySchema), async 
   })
 })
 
-catalogRoutes.get('/price-lists/:id', async (c) => {
+catalogRoutes.get('/channels/:id', async (c) => {
   const id = c.req.param('id')
-  await assertListAccess(c, id)
-  const list = await findPriceList(c.get('db'), id)
+  await assertChannelAccess(c, id)
+  const channel = await findChannel(c.get('db'), id)
 
-  if (!list) throw notFound('No encontramos esta lista de precios.')
+  if (!channel) throw notFound('No encontramos este canal de precios.')
 
-  return c.json({ data: list })
+  return c.json({ data: channel })
 })
 
-catalogRoutes.post('/price-lists', jsonBody(createPriceListSchema), async (c) => {
+catalogRoutes.post('/channels', jsonBody(createChannelSchema), async (c) => {
   requireAdminSession(c)
   const body = c.req.valid('json')
   const db = c.get('db')
 
   const [existing] = await db
-    .select({ id: priceLists.id })
-    .from(priceLists)
-    .where(eq(priceLists.name, body.name))
+    .select({ id: channels.id })
+    .from(channels)
+    .where(eq(channels.name, body.name))
     .limit(1)
 
-  if (existing) throw conflict('Ya existe una lista de precios con ese nombre.')
+  if (existing) throw conflict('Ya existe un canal con ese nombre.')
 
   const id = newId()
-  await db.insert(priceLists).values({
+  await db.insert(channels).values({
     id,
     name: body.name,
     currency: body.currency,
@@ -847,119 +897,119 @@ catalogRoutes.post('/price-lists', jsonBody(createPriceListSchema), async (c) =>
   })
 
   await writeAudit(c, {
-    action: 'catalog.price_list.create',
-    entityType: 'price_list',
+    action: 'catalog.channel.create',
+    entityType: 'channel',
     entityId: id,
     partnerId: null,
-    description: `Creó la lista de precios ${body.name}.`,
+    description: `Creó el canal de precios ${body.name}.`,
     metadata: { currency: body.currency },
   })
 
-  return c.json({ data: await findPriceList(db, id) }, 201)
+  return c.json({ data: await findChannel(db, id) }, 201)
 })
 
-catalogRoutes.patch('/price-lists/:id', jsonBody(updatePriceListSchema), async (c) => {
+catalogRoutes.patch('/channels/:id', jsonBody(updateChannelSchema), async (c) => {
   requireAdminSession(c)
   const id = c.req.param('id')
   const body = c.req.valid('json')
   const db = c.get('db')
-  const existing = await findPriceList(db, id)
+  const existing = await findChannel(db, id)
 
-  if (!existing) throw notFound('No encontramos esta lista de precios.')
+  if (!existing) throw notFound('No encontramos este canal de precios.')
 
   if (body.name && body.name !== existing.name) {
     const [duplicate] = await db
-      .select({ id: priceLists.id })
-      .from(priceLists)
-      .where(eq(priceLists.name, body.name))
+      .select({ id: channels.id })
+      .from(channels)
+      .where(eq(channels.name, body.name))
       .limit(1)
-    if (duplicate) throw conflict('Ya existe una lista de precios con ese nombre.')
+    if (duplicate) throw conflict('Ya existe un canal con ese nombre.')
   }
 
   if (body.currency && body.currency !== existing.currency) {
     const [usedByPartner] = await db
       .select({ id: partners.id })
       .from(partners)
-      .where(eq(partners.priceListId, id))
+      .where(eq(partners.channelId, id))
       .limit(1)
     const [usedBySale] = await db
       .select({ id: sql<string>`1` })
       .from(sales)
-      .where(eq(sales.priceListId, id))
+      .where(eq(sales.channelId, id))
       .limit(1)
 
     if (usedByPartner || usedBySale) {
       throw new AppError(
         409,
-        'PRICE_LIST_CURRENCY_LOCKED',
-        'No puedes cambiar la moneda de una lista que ya tiene aliados o ventas asociadas.',
+        'CHANNEL_CURRENCY_LOCKED',
+        'No puedes cambiar la moneda de un canal que ya tiene aliados o ventas asociadas.',
       )
     }
   }
 
-  const patch: Partial<typeof priceLists.$inferInsert> = { updatedAt: new Date() }
+  const patch: Partial<typeof channels.$inferInsert> = { updatedAt: new Date() }
   if (body.name !== undefined) patch.name = body.name
   if (body.currency !== undefined) patch.currency = body.currency
   if (body.status !== undefined) patch.status = body.status
   if (body.description !== undefined) patch.description = nullable(body.description)
 
-  await db.update(priceLists).set(patch).where(eq(priceLists.id, id))
+  await db.update(channels).set(patch).where(eq(channels.id, id))
 
   await writeAudit(c, {
-    action: 'catalog.price_list.update',
-    entityType: 'price_list',
+    action: 'catalog.channel.update',
+    entityType: 'channel',
     entityId: id,
     partnerId: null,
-    description: `Actualizó la lista ${body.name ?? existing.name}.`,
+    description: `Actualizó el canal ${body.name ?? existing.name}.`,
     metadata: body,
   })
 
-  return c.json({ data: await findPriceList(db, id) })
+  return c.json({ data: await findChannel(db, id) })
 })
 
-catalogRoutes.delete('/price-lists/:id', async (c) => {
+catalogRoutes.delete('/channels/:id', async (c) => {
   requireAdminSession(c)
   const id = c.req.param('id')
   const db = c.get('db')
-  const existing = await findPriceList(db, id)
+  const existing = await findChannel(db, id)
 
-  if (!existing) throw notFound('No encontramos esta lista de precios.')
+  if (!existing) throw notFound('No encontramos este canal de precios.')
 
   const [usedByPartner] = await db
     .select({ total: count() })
     .from(partners)
-    .where(eq(partners.priceListId, id))
+    .where(eq(partners.channelId, id))
   const [usedBySale] = await db
     .select({ total: count() })
     .from(sales)
-    .where(eq(sales.priceListId, id))
+    .where(eq(sales.channelId, id))
 
   if (Number(usedByPartner?.total ?? 0) > 0 || Number(usedBySale?.total ?? 0) > 0) {
-    throw conflict('La lista tiene aliados o ventas asociadas. Desactívala en lugar de eliminarla.')
+    throw conflict('El canal tiene aliados o ventas asociadas. Desactívalo en lugar de eliminarlo.')
   }
 
-  await db.delete(priceLists).where(eq(priceLists.id, id))
+  await db.delete(channels).where(eq(channels.id, id))
 
   await writeAudit(c, {
-    action: 'catalog.price_list.delete',
-    entityType: 'price_list',
+    action: 'catalog.channel.delete',
+    entityType: 'channel',
     entityId: id,
     partnerId: null,
-    description: `Eliminó la lista ${existing.name}.`,
+    description: `Eliminó el canal ${existing.name}.`,
   })
 
   return c.json({ data: { ok: true } })
 })
 
-catalogRoutes.get('/price-lists/:id/items', async (c) => {
+catalogRoutes.get('/channels/:id/prices', async (c) => {
   const id = c.req.param('id')
-  await assertListAccess(c, id)
+  await assertChannelAccess(c, id)
   const db = c.get('db')
   const search = c.req.query('search')?.trim()
   const status = c.req.query('status')
-  const conditions: SQL[] = [eq(priceListItems.priceListId, id)]
+  const conditions: SQL[] = [eq(channelPrices.channelId, id)]
 
-  if (status) conditions.push(eq(priceListItems.status, status as PriceListItem['status']))
+  if (status) conditions.push(eq(channelPrices.status, status as ChannelPriceStatus))
   if (search) {
     const term = `%${search}%`
     conditions.push(
@@ -973,35 +1023,35 @@ catalogRoutes.get('/price-lists/:id/items', async (c) => {
 
   const rows = await db
     .select({
-      id: priceListItems.id,
-      priceListId: priceListItems.priceListId,
-      productId: priceListItems.productId,
+      id: channelPrices.id,
+      channelId: channelPrices.channelId,
+      productId: channelPrices.productId,
       productSku: products.sku,
       productName: products.name,
       productType: products.type,
       productIvaEnabled: products.ivaEnabled,
-      price: priceListItems.price,
-      status: priceListItems.status,
-      position: priceListItems.position,
-      createdAt: priceListItems.createdAt,
-      updatedAt: priceListItems.updatedAt,
+      price: channelPrices.price,
+      status: channelPrices.status,
+      position: channelPrices.position,
+      createdAt: channelPrices.createdAt,
+      updatedAt: channelPrices.updatedAt,
     })
-    .from(priceListItems)
-    .innerJoin(products, eq(products.id, priceListItems.productId))
+    .from(channelPrices)
+    .innerJoin(products, eq(products.id, channelPrices.productId))
     .where(and(...conditions))
-    .orderBy(asc(priceListItems.position), asc(products.name))
+    .orderBy(asc(channelPrices.position), asc(products.name))
 
-  return c.json({ data: rows.map(serializePriceListItem) })
+  return c.json({ data: rows.map(serializeChannelPrice) })
 })
 
-catalogRoutes.post('/price-lists/:id/items', async (c) => {
+catalogRoutes.post('/channels/:id/prices', async (c) => {
   const session = requireAdminSession(c)
-  const listId = c.req.param('id')
+  const channelId = c.req.param('id')
   const db = c.get('db')
   const body = (await c.req.json()) as {
     productId?: string
     price?: number | string
-    status?: PriceListItem['status']
+    status?: ChannelPriceStatus
     position?: number
   }
 
@@ -1013,29 +1063,29 @@ catalogRoutes.post('/price-lists/:id/items', async (c) => {
     throw badRequest('Usa un precio válido.')
   }
 
-  const list = await findPriceList(db, listId)
-  if (!list) throw notFound('No encontramos esta lista de precios.')
+  const channel = await findChannel(db, channelId)
+  if (!channel) throw notFound('No encontramos este canal de precios.')
 
   const product = await findProduct(db, productId)
   if (!product) throw badRequest('El producto seleccionado no existe.')
 
   const [existing] = await db
-    .select({ id: priceListItems.id })
-    .from(priceListItems)
+    .select({ id: channelPrices.id })
+    .from(channelPrices)
     .where(
-      and(eq(priceListItems.priceListId, listId), eq(priceListItems.productId, productId)),
+      and(eq(channelPrices.channelId, channelId), eq(channelPrices.productId, productId)),
     )
     .limit(1)
 
   if (existing) {
-    throw conflict('El producto ya está en esta lista. Edita su precio en lugar de agregarlo.')
+    throw conflict('El producto ya está en este canal. Edita su precio en lugar de agregarlo.')
   }
 
   const id = newId()
   await db.batch([
-    db.insert(priceListItems).values({
+    db.insert(channelPrices).values({
       id,
-      priceListId: listId,
+      channelId,
       productId,
       price,
       status: body.status ?? 'active',
@@ -1043,55 +1093,138 @@ catalogRoutes.post('/price-lists/:id/items', async (c) => {
     }),
     db.insert(priceHistory).values({
       id: newId(),
-      priceListId: listId,
+      channelId,
       productId,
       oldPrice: null,
       newPrice: price,
-      currency: list.currency,
+      currency: channel.currency,
       changedBy: session.user.id,
       changedByName: session.user.name,
     }),
   ])
 
   await writeAudit(c, {
-    action: 'catalog.price_list.item.create',
-    entityType: 'price_list_item',
+    action: 'catalog.channel.price.create',
+    entityType: 'channel_price',
     entityId: id,
     partnerId: null,
-    description: `Agregó ${product.name} a la lista ${list.name}.`,
-    metadata: { price, currency: list.currency },
+    description: `Agregó ${product.name} al canal ${channel.name}.`,
+    metadata: { price, currency: channel.currency },
   })
 
   return c.json({ data: { ok: true, id } }, 201)
 })
 
-catalogRoutes.patch('/price-lists/:id/items/:itemId', async (c) => {
+catalogRoutes.put(
+  '/channels/:id/prices/by-product/:productId',
+  jsonBody(setChannelPriceSchema),
+  async (c) => {
+    const session = requireAdminSession(c)
+    const channelId = c.req.param('id')
+    const productId = c.req.param('productId')
+    const body = c.req.valid('json')
+    const db = c.get('db')
+
+    const channel = await findChannel(db, channelId)
+    if (!channel) throw notFound('No encontramos este canal de precios.')
+
+    const product = await findProduct(db, productId)
+    if (!product) throw badRequest('El producto seleccionado no existe.')
+
+    const [existing] = await db
+      .select({
+        id: channelPrices.id,
+        price: channelPrices.price,
+        status: channelPrices.status,
+      })
+      .from(channelPrices)
+      .where(
+        and(eq(channelPrices.channelId, channelId), eq(channelPrices.productId, productId)),
+      )
+      .limit(1)
+
+    const itemId = existing?.id ?? newId()
+    const statements: unknown[] = []
+
+    if (existing) {
+      statements.push(
+        db
+          .update(channelPrices)
+          .set({ price: body.price, status: body.status, updatedAt: new Date() })
+          .where(eq(channelPrices.id, existing.id)),
+      )
+    } else {
+      statements.push(
+        db.insert(channelPrices).values({
+          id: itemId,
+          channelId,
+          productId,
+          price: body.price,
+          status: body.status,
+          position: 0,
+        }),
+      )
+    }
+
+    if (!existing || Number(existing.price) !== body.price) {
+      statements.push(
+        db.insert(priceHistory).values({
+          id: newId(),
+          channelId,
+          productId,
+          oldPrice: existing ? Number(existing.price) : null,
+          newPrice: body.price,
+          currency: channel.currency,
+          changedBy: session.user.id,
+          changedByName: session.user.name,
+        }),
+      )
+    }
+
+    await db.batch(statements as never)
+
+    await writeAudit(c, {
+      action: existing ? 'catalog.channel.price.update' : 'catalog.channel.price.create',
+      entityType: 'channel_price',
+      entityId: itemId,
+      partnerId: null,
+      description: `Definió el precio de ${product.name} en el canal ${channel.name}.`,
+      metadata: { price: body.price, status: body.status, currency: channel.currency },
+    })
+
+    return c.json({
+      data: { ok: true, itemId, price: body.price, status: body.status },
+    })
+  },
+)
+
+catalogRoutes.patch('/channels/:id/prices/:itemId', async (c) => {
   const session = requireAdminSession(c)
-  const listId = c.req.param('id')
+  const channelId = c.req.param('id')
   const itemId = c.req.param('itemId')
   const db = c.get('db')
   const body = (await c.req.json()) as {
     price?: number | string
-    status?: PriceListItem['status']
+    status?: ChannelPriceStatus
     position?: number
   }
 
-  const list = await findPriceList(db, listId)
-  if (!list) throw notFound('No encontramos esta lista de precios.')
+  const channel = await findChannel(db, channelId)
+  if (!channel) throw notFound('No encontramos este canal de precios.')
 
   const [existing] = await db
     .select({
-      id: priceListItems.id,
-      productId: priceListItems.productId,
-      price: priceListItems.price,
+      id: channelPrices.id,
+      productId: channelPrices.productId,
+      price: channelPrices.price,
     })
-    .from(priceListItems)
-    .where(and(eq(priceListItems.id, itemId), eq(priceListItems.priceListId, listId)))
+    .from(channelPrices)
+    .where(and(eq(channelPrices.id, itemId), eq(channelPrices.channelId, channelId)))
     .limit(1)
 
-  if (!existing) throw notFound('No encontramos este precio en la lista.')
+  if (!existing) throw notFound('No encontramos este precio en el canal.')
 
-  const patch: Partial<typeof priceListItems.$inferInsert> = { updatedAt: new Date() }
+  const patch: Partial<typeof channelPrices.$inferInsert> = { updatedAt: new Date() }
   let nextPrice = Number(existing.price)
 
   if (body.price !== undefined) {
@@ -1104,18 +1237,18 @@ catalogRoutes.patch('/price-lists/:id/items/:itemId', async (c) => {
   if (body.position !== undefined) patch.position = body.position
 
   const statements: unknown[] = [
-    db.update(priceListItems).set(patch).where(eq(priceListItems.id, itemId)),
+    db.update(channelPrices).set(patch).where(eq(channelPrices.id, itemId)),
   ]
 
   if (nextPrice !== Number(existing.price)) {
     statements.push(
       db.insert(priceHistory).values({
         id: newId(),
-        priceListId: listId,
+        channelId,
         productId: existing.productId,
         oldPrice: Number(existing.price),
         newPrice: nextPrice,
-        currency: list.currency,
+        currency: channel.currency,
         changedBy: session.user.id,
         changedByName: session.user.name,
       }),
@@ -1125,72 +1258,72 @@ catalogRoutes.patch('/price-lists/:id/items/:itemId', async (c) => {
   await db.batch(statements as never)
 
   await writeAudit(c, {
-    action: 'catalog.price_list.item.update',
-    entityType: 'price_list_item',
+    action: 'catalog.channel.price.update',
+    entityType: 'channel_price',
     entityId: itemId,
     partnerId: null,
-    description: `Actualizó un precio de la lista ${list.name}.`,
+    description: `Actualizó un precio del canal ${channel.name}.`,
     metadata: { price: nextPrice },
   })
 
   return c.json({ data: { ok: true } })
 })
 
-catalogRoutes.delete('/price-lists/:id/items/:itemId', async (c) => {
+catalogRoutes.delete('/channels/:id/prices/:itemId', async (c) => {
   requireAdminSession(c)
-  const listId = c.req.param('id')
+  const channelId = c.req.param('id')
   const itemId = c.req.param('itemId')
   const db = c.get('db')
-  const list = await findPriceList(db, listId)
+  const channel = await findChannel(db, channelId)
 
-  if (!list) throw notFound('No encontramos esta lista de precios.')
+  if (!channel) throw notFound('No encontramos este canal de precios.')
 
   const [existing] = await db
-    .select({ id: priceListItems.id })
-    .from(priceListItems)
-    .where(and(eq(priceListItems.id, itemId), eq(priceListItems.priceListId, listId)))
+    .select({ id: channelPrices.id })
+    .from(channelPrices)
+    .where(and(eq(channelPrices.id, itemId), eq(channelPrices.channelId, channelId)))
     .limit(1)
 
-  if (!existing) throw notFound('No encontramos este precio en la lista.')
+  if (!existing) throw notFound('No encontramos este precio en el canal.')
 
-  await db.delete(priceListItems).where(eq(priceListItems.id, itemId))
+  await db.delete(channelPrices).where(eq(channelPrices.id, itemId))
 
   await writeAudit(c, {
-    action: 'catalog.price_list.item.delete',
-    entityType: 'price_list_item',
+    action: 'catalog.channel.price.delete',
+    entityType: 'channel_price',
     entityId: itemId,
     partnerId: null,
-    description: `Quitó un producto de la lista ${list.name}.`,
+    description: `Quitó un producto del canal ${channel.name}.`,
   })
 
   return c.json({ data: { ok: true } })
 })
 
 catalogRoutes.put(
-  '/price-lists/:id/items',
-  jsonBody(syncPriceListItemsSchema),
+  '/channels/:id/prices',
+  jsonBody(syncChannelPricesSchema),
   async (c) => {
     const session = requireAdminSession(c)
-    const listId = c.req.param('id')
+    const channelId = c.req.param('id')
     const body = c.req.valid('json')
     const db = c.get('db')
-    const list = await findPriceList(db, listId)
+    const channel = await findChannel(db, channelId)
 
-    if (!list) throw notFound('No encontramos esta lista de precios.')
+    if (!channel) throw notFound('No encontramos este canal de precios.')
 
     const productIds = body.items.map((item) => item.productId)
     if (new Set(productIds).size !== productIds.length) {
-      throw badRequest('Hay productos repetidos en la lista.')
+      throw badRequest('Hay productos repetidos en el canal.')
     }
 
     const existingRows = await db
       .select({
-        id: priceListItems.id,
-        productId: priceListItems.productId,
-        price: priceListItems.price,
+        id: channelPrices.id,
+        productId: channelPrices.productId,
+        price: channelPrices.price,
       })
-      .from(priceListItems)
-      .where(eq(priceListItems.priceListId, listId))
+      .from(channelPrices)
+      .where(eq(channelPrices.channelId, channelId))
     const existingByProduct = new Map(existingRows.map((row) => [row.productId, row]))
 
     const productsFound = await db
@@ -1213,25 +1346,25 @@ catalogRoutes.put(
       if (existing) {
         statements.push(
           db
-            .update(priceListItems)
+            .update(channelPrices)
             .set({
               price: item.price,
               status: item.status,
               position: item.position,
               updatedAt: new Date(),
             })
-            .where(eq(priceListItems.id, existing.id)),
+            .where(eq(channelPrices.id, existing.id)),
         )
 
         if (Number(existing.price) !== item.price) {
           statements.push(
             db.insert(priceHistory).values({
               id: newId(),
-              priceListId: listId,
+              channelId,
               productId: item.productId,
               oldPrice: Number(existing.price),
               newPrice: item.price,
-              currency: list.currency,
+              currency: channel.currency,
               changedBy: session.user.id,
               changedByName: session.user.name,
             }),
@@ -1239,9 +1372,9 @@ catalogRoutes.put(
         }
       } else {
         statements.push(
-          db.insert(priceListItems).values({
+          db.insert(channelPrices).values({
             id: newId(),
-            priceListId: listId,
+            channelId,
             productId: item.productId,
             price: item.price,
             status: item.status,
@@ -1249,11 +1382,11 @@ catalogRoutes.put(
           }),
           db.insert(priceHistory).values({
             id: newId(),
-            priceListId: listId,
+            channelId,
             productId: item.productId,
             oldPrice: null,
             newPrice: item.price,
-            currency: list.currency,
+            currency: channel.currency,
             changedBy: session.user.id,
             changedByName: session.user.name,
           }),
@@ -1266,11 +1399,11 @@ catalogRoutes.put(
     }
 
     await writeAudit(c, {
-      action: 'catalog.price_list.items.sync',
-      entityType: 'price_list',
-      entityId: listId,
+      action: 'catalog.channel.prices.sync',
+      entityType: 'channel',
+      entityId: channelId,
       partnerId: null,
-      description: `Sincronizó ${body.items.length} precio(s) de la lista ${list.name}.`,
+      description: `Sincronizó ${body.items.length} precio(s) del canal ${channel.name}.`,
       metadata: { count: body.items.length },
     })
 

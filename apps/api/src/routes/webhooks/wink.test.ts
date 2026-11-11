@@ -178,6 +178,60 @@ describe('POST /api/webhooks/wink', () => {
     expect(await db.select().from(schema.winkWebhookEvents)).toHaveLength(1)
   })
 
+  it('registra una actualización como un evento nuevo sin sobrescribir el original', async () => {
+    const created = JSON.stringify({
+      event: 'new_sale',
+      data: {
+        id: 286,
+        status: 'En preparación',
+        updatedAt: '2026-05-04T09:42:00.000Z',
+      },
+    })
+    const updated = JSON.stringify({
+      event: 'sale_update',
+      data: {
+        id: 286,
+        status: 'Enviado',
+        updatedAt: '2026-05-04T10:00:00.000Z',
+      },
+    })
+
+    expect((await send(created)).status).toBe(200)
+    expect((await send(updated)).status).toBe(200)
+
+    const rows = await db.select().from(schema.winkWebhookEvents)
+    const createdRow = rows.find((row) => row.event === 'new_sale')
+    const updatedRow = rows.find((row) => row.event === 'sale_update')
+
+    expect(rows).toHaveLength(2)
+    if (!createdRow || !updatedRow) throw new Error('Faltan los eventos esperados')
+
+    expect(createdRow).toMatchObject({
+      externalSaleId: '286',
+      status: 'received',
+    })
+    expect(createdRow.externalUpdatedAt?.toISOString()).toBe('2026-05-04T09:42:00.000Z')
+    expect(updatedRow).toMatchObject({
+      externalSaleId: '286',
+      status: 'received',
+    })
+    expect(updatedRow.externalUpdatedAt?.toISOString()).toBe('2026-05-04T10:00:00.000Z')
+  })
+
+  it('deduplica el reintento exacto de una actualización', async () => {
+    const body = JSON.stringify({
+      event: 'sale_update',
+      data: { id: 286, status: 'Enviado', updatedAt: '2026-05-04T10:00:00.000Z' },
+    })
+
+    const first = (await (await send(body)).json()) as { data: { duplicate: boolean } }
+    const second = (await (await send(body)).json()) as { data: { duplicate: boolean } }
+
+    expect(first.data.duplicate).toBe(false)
+    expect(second.data.duplicate).toBe(true)
+    expect(await db.select().from(schema.winkWebhookEvents)).toHaveLength(1)
+  })
+
   it('responde 500 si el secreto no está configurado', async () => {
     const response = await app.request(
       '/api/webhooks/wink',

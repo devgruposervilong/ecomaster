@@ -60,6 +60,20 @@ export function formatNumber(value: number) {
   return new Intl.NumberFormat('es-VE', { maximumFractionDigits: 2 }).format(value)
 }
 
+export function formatMoney(cents: number, currency: 'USD' | 'EUR' | 'VES') {
+  return formatAmount(cents / 100, currency)
+}
+
+/** Formatea un monto decimal (no centavos) con la moneda indicada. */
+export function formatAmount(value: number, currency: 'USD' | 'EUR' | 'VES') {
+  const amount = new Intl.NumberFormat('es-VE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0)
+
+  return `${currencySymbol(currency)} ${amount}`
+}
+
 export function currencySymbol(currency: 'USD' | 'EUR' | 'VES') {
   if (currency === 'EUR') return '€'
   if (currency === 'VES') return 'Bs.'

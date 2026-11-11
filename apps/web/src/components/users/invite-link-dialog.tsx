@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Copy, Link2, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { ROLE_LABELS, type InviteRow } from '@tools/shared'
+import { ROLE_LABELS, type InviteRow } from '@ecomaster/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -33,7 +33,8 @@ export function InviteLinkDialog({
 
   if (!invite) return null
 
-  const message = `Hola, te comparto tu acceso al backoffice de Eco Master para ${invite.partnerName}: ${url}. El enlace vence el ${formatDate(invite.expiresAt)}.`
+  const scope = invite.partnerName ?? 'Eco Master · acceso global'
+  const message = `Hola, te comparto tu acceso al backoffice de Eco Master para ${scope}: ${url}. El enlace vence el ${formatDate(invite.expiresAt)}.`
 
   const copy = async () => {
     try {
@@ -62,7 +63,7 @@ export function InviteLinkDialog({
         <div className="rounded-2xl border border-black/10 bg-black/[0.02] p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-[#0A0A0A]">{invite.partnerName}</p>
+              <p className="truncate text-sm font-medium text-[#0A0A0A]">{scope}</p>
               <p className="mt-0.5 text-xs text-black/45">
                 {ROLE_LABELS[invite.role]} · Vence {formatDate(invite.expiresAt)}
               </p>

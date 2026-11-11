@@ -3,7 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from '@tanstack/react-form'
 import { Loader2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Role, UserRow } from '@tools/shared'
+import {
+  DEFAULT_COLLABORATOR_MODULES,
+  isCollaboratorRole,
+  isGlobalRole,
+  type ModuleKey,
+  type Role,
+  type UserRow,
+} from '@ecomaster/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -22,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ModuleAccessPicker } from '@/components/users/module-access-picker'
 import { apiFetch, errorMessage, jsonBody } from '@/lib/api'
 import { useMe } from '@/lib/auth-context'
 import { partnerOptionsQuery } from '@/lib/queries'
@@ -46,11 +54,12 @@ export function EditUserDialog({
       name: user.name,
       role: user.role as Role,
       partnerId: user.partnerId ?? '',
+      modules: user.modules as ModuleKey[],
     },
     onSubmit: async ({ value }) => {
       setError(null)
 
-      if (value.role !== 'admin' && !value.partnerId) {
+      if (!isGlobalRole(value.role) && !value.partnerId) {
         setError('Selecciona el aliado al que pertenece el usuario.')
         return
       }
@@ -61,7 +70,8 @@ export function EditUserDialog({
           body: jsonBody({
             name: value.name.trim(),
             role: value.role,
-            partnerId: value.role === 'admin' ? null : value.partnerId,
+            partnerId: isGlobalRole(value.role) ? null : value.partnerId,
+            modules: isCollaboratorRole(value.role) ? value.modules : [],
           }),
         })
 
@@ -83,9 +93,10 @@ export function EditUserDialog({
         name: user.name,
         role: user.role as Role,
         partnerId: user.partnerId ?? '',
+        modules: user.modules as ModuleKey[],
       })
     }
-  }, [open, user.id, user.name, user.role, user.partnerId])
+  }, [open, user.id, user.name, user.role, user.partnerId, user.modules])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -145,7 +156,11 @@ export function EditUserDialog({
                   onValueChange={(value) => {
                     const role = value as Role
                     field.handleChange(role)
-                    if (role === 'admin') form.setFieldValue('partnerId', '')
+                    if (isGlobalRole(role)) form.setFieldValue('partnerId', '')
+                    form.setFieldValue(
+                      'modules',
+                      isCollaboratorRole(role) ? [...DEFAULT_COLLABORATOR_MODULES] : [],
+                    )
                   }}
                   disabled={isSelf}
                 >
@@ -153,8 +168,9 @@ export function EditUserDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="partner_operator">Operador</SelectItem>
+                    <SelectItem value="partner_collaborator">Colaborador del aliado</SelectItem>
                     <SelectItem value="partner_admin">Admin. del aliado</SelectItem>
+                    <SelectItem value="collaborator">Colaborador global</SelectItem>
                     <SelectItem value="admin">Administrador</SelectItem>
                   </SelectContent>
                 </Select>
@@ -170,7 +186,7 @@ export function EditUserDialog({
           <form.Subscribe
             selector={(state) => state.values.role}
             children={(role) =>
-              role === 'admin' ? null : (
+              isGlobalRole(role) ? null : (
                 <form.Field
                   name="partnerId"
                   children={(field) => (
@@ -199,6 +215,30 @@ export function EditUserDialog({
                     </div>
                   )}
                 />
+              )
+            }
+          />
+
+          <form.Subscribe
+            selector={(state) => state.values.role}
+            children={(role) =>
+              isCollaboratorRole(role) ? (
+                <form.Field
+                  name="modules"
+                  children={(field) => (
+                    <div className="space-y-2">
+                      <Label>Módulos habilitados</Label>
+                      <ModuleAccessPicker
+                        value={field.state.value}
+                        onChange={(modules) => field.handleChange(modules)}
+                      />
+                    </div>
+                  )}
+                />
+              ) : (
+                <div className="rounded-xl bg-black/[0.03] px-3.5 py-3 text-xs leading-5 text-black/45">
+                  Este rol tiene acceso a todos los módulos de su alcance.
+                </div>
               )
             }
           />

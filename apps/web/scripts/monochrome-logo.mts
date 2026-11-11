@@ -9,7 +9,7 @@
  * Se usa como fuente de los iconos PWA (`pwa-assets.config.ts`), del splash
  * (`pwa-splash.mts`) y del splash inicial de `index.html`.
  *
- * Uso: pnpm --filter @tools/web pwa:monochrome
+ * Uso: pnpm --filter @ecomaster/web pwa:monochrome
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'

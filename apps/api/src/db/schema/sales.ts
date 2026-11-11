@@ -12,7 +12,7 @@ import {
 import { newId } from '../../lib/ids'
 import { user } from './auth.generated'
 import { partners } from './partners'
-import { priceLists } from './price-lists'
+import { channels } from './channels'
 import { PRODUCT_TYPES, products } from './products'
 
 export const SALE_STATUSES = ['confirmed', 'cancelled'] as const
@@ -51,9 +51,9 @@ const timestamps = {
 }
 
 /**
- * Cabecera de venta. Guarda snapshots del aliado y de la lista para que el
+ * Cabecera de venta. Guarda snapshots del aliado y de su canal para que el
  * documento histórico no cambie si luego se renombran. Los importes se
- * conservan en las tres monedas: la de la lista (base), VES y la tercera.
+ * conservan en las tres monedas: la del canal (base), VES y la tercera.
  */
 export const sales = sqliteTable(
   'sales',
@@ -64,10 +64,10 @@ export const sales = sqliteTable(
       .references(() => partners.id, { onDelete: 'restrict' }),
     partnerName: text('partner_name').notNull(),
     partnerRif: text('partner_rif'),
-    priceListId: text('price_list_id')
+    channelId: text('channel_id')
       .notNull()
-      .references(() => priceLists.id, { onDelete: 'restrict' }),
-    priceListName: text('price_list_name').notNull(),
+      .references(() => channels.id, { onDelete: 'restrict' }),
+    channelName: text('channel_name').notNull(),
     currency: text('currency', { enum: CURRENCY_ENUM }).notNull(),
     usdRate: numeric('usd_rate', { mode: 'number' }).notNull(),
     eurRate: numeric('eur_rate', { mode: 'number' }).notNull(),
@@ -112,7 +112,7 @@ export const sales = sqliteTable(
     uniqueIndex('sales_id_partner_uq').on(table.id, table.partnerId),
     index('sales_partner_sold_idx').on(table.partnerId, table.soldAt),
     index('sales_partner_status_idx').on(table.partnerId, table.status),
-    index('sales_price_list_idx').on(table.priceListId),
+    index('sales_price_list_idx').on(table.channelId),
     check(
       'sales_total_usd_identity',
       sql`round(${table.totalUsd}, 2) = round(${table.subtotalUsd} - ${table.discountUsd} + ${table.ivaUsd}, 2)`,
@@ -134,7 +134,7 @@ export const sales = sqliteTable(
 
 /**
  * Línea de venta. Guarda el snapshot del producto y los importes en la moneda
- * base de la lista y en VES. El EUR solo se guarda en la cabecera.
+ * base del canal y en VES. El EUR solo se guarda en la cabecera.
  */
 export const saleItems = sqliteTable(
   'sale_items',

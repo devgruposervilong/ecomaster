@@ -24,6 +24,7 @@ import { useMe } from '@/lib/auth-context'
 import { firstName, formatDateTime, formatNumber, partnerTypeLabel } from '@/lib/format'
 import { dashboardQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { hasModuleAccess, isGlobalRole, ROLE_LABELS } from '@ecomaster/shared'
 
 export const Route = createFileRoute('/_app/')({
   component: DashboardPage,
@@ -74,13 +75,15 @@ function DashboardPage() {
   const me = useMe()
   const dashboard = useQuery(dashboardQuery)
   const isAdmin = me.user.role === 'admin'
+  const isGlobal = isGlobalRole(me.user.role)
+  const canCatalog = hasModuleAccess(me.user.role, me.user.modules, 'catalog')
   const data = dashboard.data
   const totalSales = data?.salesSeries.reduce((sum, point) => sum + point.value, 0) ?? 0
-  const heroFacts = isAdmin
+  const heroFacts = isGlobal
     ? [
         { label: 'Aislamiento', value: 'Por aliado' },
-        { label: 'Acceso', value: 'Por invitación' },
-        { label: 'Roles', value: '3 niveles' },
+        { label: 'Acceso', value: isAdmin ? 'Global' : 'Por módulos' },
+        { label: 'Roles', value: isAdmin ? '4 niveles' : 'Colaborador' },
         { label: 'ERP', value: 'Profit-ready' },
       ]
     : [
@@ -103,7 +106,9 @@ function DashboardPage() {
           <p className="mt-1.5 text-sm text-black/50">
             {isAdmin
               ? 'Este es el pulso de Eco Master y sus aliados comerciales.'
-              : `Este es el pulso de ${me.partner?.name ?? 'tu aliado'}.`}
+              : isGlobal
+                ? 'Este es el pulso consolidado de Eco Master y sus aliados.'
+                : `Este es el pulso de ${me.partner?.name ?? 'tu aliado'}.`}
           </p>
         </div>
 
@@ -143,17 +148,23 @@ function DashboardPage() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1 text-[11px] text-white/65">
               <Sparkles className="size-3 text-[#BCD86C]" />
-              {isAdmin ? 'Fase 1 · Accesos y aliados' : 'Backoffice de aliado'}
+              {isAdmin
+                ? 'Fase 1 · Accesos y aliados'
+                : isGlobal
+                  ? 'Acceso global por módulos'
+                  : 'Backoffice de aliado'}
             </span>
             <h2 className="mt-5 max-w-2xl text-3xl font-semibold leading-[1.08] tracking-[-0.045em] md:text-[2.6rem]">
-              {isAdmin
+              {isGlobal
                 ? 'Una base ordenada para vender, conciliar y crecer.'
                 : 'Tu operación, con trazabilidad desde el primer movimiento.'}
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
               {isAdmin
                 ? 'Administra quién entra, a qué aliado pertenece y qué puede hacer. Los módulos de ventas, inventario y finanzas se conectarán sobre esta misma estructura.'
-                : `Consulta la información de ${me.partner?.name ?? 'tu aliado'} y prepárate para registrar ventas, inventario y finanzas con la misma trazabilidad de Eco Master.`}
+                : isGlobal
+                  ? 'Consulta la operación consolidada de los aliados dentro de los módulos que el administrador habilitó para tu usuario.'
+                  : `Consulta la información de ${me.partner?.name ?? 'tu aliado'} y prepárate para registrar ventas, inventario y finanzas con la misma trazabilidad de Eco Master.`}
             </p>
           </div>
 
@@ -180,19 +191,23 @@ function DashboardPage() {
           </CardContent>
         </Card>
       ) : dashboard.isLoading || !data ? (
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, index) => (
+        <div
+          className={cn('grid grid-cols-2 gap-3', isAdmin ? 'xl:grid-cols-5' : 'xl:grid-cols-2')}
+        >
+          {Array.from({ length: isAdmin ? 5 : 2 }).map((_, index) => (
             <Skeleton
               key={index}
               className={cn(
                 'h-[132px] rounded-[26px] bg-black/[0.05]',
-                index === 4 && 'col-span-2 sm:col-span-1',
+                isAdmin && index === 4 && 'col-span-2 sm:col-span-1',
               )}
             />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        <div
+          className={cn('grid grid-cols-2 gap-3', isAdmin ? 'xl:grid-cols-5' : 'xl:grid-cols-2')}
+        >
           <MetricCard
             label="Ventas de hoy"
             value={formatNumber(data.metrics.salesToday)}
@@ -205,27 +220,31 @@ function DashboardPage() {
             hint="Aún sin registrar"
             icon={Boxes}
           />
-          <MetricCard
-            label="Aliados activos"
-            value={formatNumber(data.metrics.activePartners)}
-            hint={isAdmin ? 'Con acceso habilitado' : 'Tu aliado'}
-            icon={Handshake}
-          />
-          <MetricCard
-            label="Usuarios activos"
-            value={formatNumber(data.metrics.activeUsers)}
-            hint="Con sesión habilitada"
-            icon={Users}
-          />
-          <div className="col-span-2 sm:col-span-1">
-            <MetricCard
-              label="Invitaciones"
-              value={formatNumber(data.metrics.pendingInvites)}
-              hint="Pendientes de aceptar"
-              icon={Mail}
-              accent
-            />
-          </div>
+          {isAdmin ? (
+            <>
+              <MetricCard
+                label="Aliados activos"
+                value={formatNumber(data.metrics.activePartners)}
+                hint="Con acceso habilitado"
+                icon={Handshake}
+              />
+              <MetricCard
+                label="Usuarios activos"
+                value={formatNumber(data.metrics.activeUsers)}
+                hint="Con sesión habilitada"
+                icon={Users}
+              />
+              <div className="col-span-2 sm:col-span-1">
+                <MetricCard
+                  label="Invitaciones"
+                  value={formatNumber(data.metrics.pendingInvites)}
+                  hint="Pendientes de aceptar"
+                  icon={Mail}
+                  accent
+                />
+              </div>
+            </>
+          ) : null}
         </div>
       )}
 
@@ -279,39 +298,89 @@ function DashboardPage() {
                     title="Usuarios"
                     description="Invita, suspende y asigna roles."
                   />
+                  <QuickLink
+                    to="/catalogo"
+                    icon={Package}
+                    title="Catálogo"
+                    description="Productos, precios y categorías por aliado."
+                  />
+                </>
+              ) : isGlobal ? (
+                <>
+                  <div className="rounded-2xl border border-black/10 p-4">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-black/35">
+                      Tu acceso
+                    </p>
+                    <p className="mt-2 text-base font-semibold text-[#0A0A0A]">
+                      {ROLE_LABELS[me.user.role]}
+                    </p>
+                    <p className="mt-1 text-xs text-black/45">
+                      {me.user.modules.length} módulo
+                      {me.user.modules.length === 1 ? '' : 's'} habilitado
+                      {me.user.modules.length === 1 ? '' : 's'} · acceso global
+                    </p>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="mt-4 w-full rounded-xl border-black/10"
+                    >
+                      <Link to="/ajustes">
+                        Ver mi perfil
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                  {canCatalog ? (
+                    <QuickLink
+                      to="/catalogo"
+                      icon={Package}
+                      title="Catálogo"
+                      description="Consulta los productos de todos los aliados."
+                    />
+                  ) : null}
                 </>
               ) : (
-                <div className="rounded-2xl border border-black/10 p-4">
-                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-black/35">
-                    Tu aliado
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-[#0A0A0A]">
-                    {me.partner?.name ?? 'Sin aliado asignado'}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {me.partner ? (
-                      <>
-                        <StatusBadge status={me.partner.status} />
-                        <span className="rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/50">
-                          {partnerTypeLabel(me.partner.type)}
-                        </span>
-                        <span className="rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/50">
-                          {me.partner.currency}
-                        </span>
-                      </>
-                    ) : null}
+                <>
+                  <div className="rounded-2xl border border-black/10 p-4">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-black/35">
+                      Tu aliado
+                    </p>
+                    <p className="mt-2 text-base font-semibold text-[#0A0A0A]">
+                      {me.partner?.name ?? 'Sin aliado asignado'}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {me.partner ? (
+                        <>
+                          <StatusBadge status={me.partner.status} />
+                          <span className="rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/50">
+                            {partnerTypeLabel(me.partner.type)}
+                          </span>
+                          <span className="rounded-full border border-black/10 px-2.5 py-1 text-[11px] text-black/50">
+                            {me.partner.currency}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="mt-4 w-full rounded-xl border-black/10"
+                    >
+                      <Link to="/ajustes">
+                        Ver mi perfil
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
                   </div>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="mt-4 w-full rounded-xl border-black/10"
-                  >
-                    <Link to="/ajustes">
-                      Ver mi perfil
-                      <ArrowRight className="size-4" />
-                    </Link>
-                  </Button>
-                </div>
+                  {canCatalog ? (
+                    <QuickLink
+                      to="/catalogo"
+                      icon={Package}
+                      title="Catálogo"
+                      description="Consulta los productos y precios de tu aliado."
+                    />
+                  ) : null}
+                </>
               )}
             </CardContent>
           </Card>
@@ -392,11 +461,6 @@ function DashboardPage() {
                 icon: ShoppingCart,
                 title: 'Ventas',
                 description: 'Registro diario y cierres por aliado.',
-              },
-              {
-                icon: Package,
-                title: 'Catálogo',
-                description: 'Productos, precios y moneda base.',
               },
               {
                 icon: Boxes,

@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from '@tanstack/react-form'
 import { Loader2, MailPlus } from 'lucide-react'
-import type { InviteRow, Role } from '@tools/shared'
+import {
+  DEFAULT_COLLABORATOR_MODULES,
+  isCollaboratorRole,
+  isGlobalRole,
+  type InviteRow,
+  type ModuleKey,
+  type Role,
+} from '@ecomaster/shared'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -21,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ModuleAccessPicker } from '@/components/users/module-access-picker'
 import { apiFetch, errorMessage, jsonBody } from '@/lib/api'
 import { partnerOptionsQuery } from '@/lib/queries'
 
@@ -41,18 +49,25 @@ export function InviteUserDialog({
     defaultValues: {
       email: '',
       partnerId: '',
-      role: 'partner_operator' as Role,
+      role: 'partner_collaborator' as Role,
+      modules: [...DEFAULT_COLLABORATOR_MODULES] as ModuleKey[],
     },
     onSubmit: async ({ value }) => {
       setError(null)
+
+      if (!isGlobalRole(value.role) && !value.partnerId) {
+        setError('Selecciona el aliado al que pertenece el usuario.')
+        return
+      }
 
       try {
         const response = await apiFetch<{ data: InviteRow; url: string }>('/api/admin/invites', {
           method: 'POST',
           body: jsonBody({
             email: value.email.trim(),
-            partnerId: value.partnerId,
+            partnerId: isGlobalRole(value.role) ? null : value.partnerId,
             role: value.role,
+            modules: isCollaboratorRole(value.role) ? value.modules : [],
           }),
         })
 
@@ -116,38 +131,50 @@ export function InviteUserDialog({
             )}
           />
 
-          <form.Field
-            name="partnerId"
-            children={(field) => (
-              <div className="space-y-2">
-                <Label>Aliado</Label>
-                <Select
-                  value={field.state.value}
-                  onValueChange={(value) => field.handleChange(value)}
-                  disabled={partners.isLoading}
-                >
-                  <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
-                    <SelectValue
-                      placeholder={
-                        partners.isLoading ? 'Cargando aliados…' : 'Selecciona un aliado'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {partners.data?.map((partner) => (
-                      <SelectItem key={partner.id} value={partner.id}>
-                        {partner.name} · {partner.currency}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {partners.data?.length === 0 ? (
-                  <p className="text-xs text-black/45">
-                    Primero crea un aliado en la sección Aliados.
-                  </p>
-                ) : null}
-              </div>
-            )}
+          <form.Subscribe
+            selector={(state) => state.values.role}
+            children={(role) =>
+              isGlobalRole(role) ? (
+                <div className="rounded-xl border border-black/10 bg-black/[0.02] px-3.5 py-3 text-xs leading-5 text-black/50">
+                  Este usuario no pertenece a un aliado. Verá la información de todos los aliados
+                  únicamente en los módulos que le habilites.
+                </div>
+              ) : (
+                <form.Field
+                  name="partnerId"
+                  children={(field) => (
+                    <div className="space-y-2">
+                      <Label>Aliado</Label>
+                      <Select
+                        value={field.state.value}
+                        onValueChange={(value) => field.handleChange(value)}
+                        disabled={partners.isLoading}
+                      >
+                        <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
+                          <SelectValue
+                            placeholder={
+                              partners.isLoading ? 'Cargando aliados…' : 'Selecciona un aliado'
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {partners.data?.map((partner) => (
+                            <SelectItem key={partner.id} value={partner.id}>
+                              {partner.name} · {partner.currency}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {partners.data?.length === 0 ? (
+                        <p className="text-xs text-black/45">
+                          Primero crea un aliado en la sección Aliados.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                />
+              )
+            }
           />
 
           <form.Field
@@ -157,22 +184,58 @@ export function InviteUserDialog({
                 <Label>Rol</Label>
                 <Select
                   value={field.state.value}
-                  onValueChange={(value) => field.handleChange(value as Role)}
+                  onValueChange={(value) => {
+                    const nextRole = value as Role
+                    field.handleChange(nextRole)
+                    form.setFieldValue('partnerId', '')
+                    form.setFieldValue(
+                      'modules',
+                      isCollaboratorRole(nextRole) ? [...DEFAULT_COLLABORATOR_MODULES] : [],
+                    )
+                  }}
                 >
                   <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="partner_operator">Operador</SelectItem>
+                    <SelectItem value="partner_collaborator">Colaborador del aliado</SelectItem>
                     <SelectItem value="partner_admin">Admin. del aliado</SelectItem>
+                    <SelectItem value="collaborator">Colaborador global</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs leading-5 text-black/40">
-                  El operador registra movimientos. El admin del aliado también podrá gestionar
-                  usuarios de su aliado en una próxima fase.
+                  El administrador del aliado tiene acceso total dentro de su aliado. El
+                  colaborador solo accede a los módulos que le habilites.
                 </p>
               </div>
             )}
+          />
+
+          <form.Subscribe
+            selector={(state) => state.values.role}
+            children={(role) =>
+              isCollaboratorRole(role) ? (
+                <form.Field
+                  name="modules"
+                  children={(field) => (
+                    <div className="space-y-2">
+                      <Label>Módulos habilitados</Label>
+                      <ModuleAccessPicker
+                        value={field.state.value}
+                        onChange={(modules) => field.handleChange(modules)}
+                      />
+                      <p className="text-xs leading-5 text-black/40">
+                        Puedes ajustar estos permisos después desde Usuarios.
+                      </p>
+                    </div>
+                  )}
+                />
+              ) : (
+                <div className="rounded-xl bg-black/[0.03] px-3.5 py-3 text-xs leading-5 text-black/45">
+                  Este rol tiene acceso a todos los módulos de su alcance.
+                </div>
+              )
+            }
           />
 
           {error ? (

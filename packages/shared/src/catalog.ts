@@ -9,13 +9,13 @@ export const PRODUCT_STATUSES = ['active', 'inactive'] as const
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number]
 export const productStatusSchema = z.enum(PRODUCT_STATUSES)
 
-export const PRICE_LIST_STATUSES = ['active', 'inactive'] as const
-export type PriceListStatus = (typeof PRICE_LIST_STATUSES)[number]
-export const priceListStatusSchema = z.enum(PRICE_LIST_STATUSES)
+export const CHANNEL_STATUSES = ['active', 'inactive'] as const
+export type ChannelStatus = (typeof CHANNEL_STATUSES)[number]
+export const channelStatusSchema = z.enum(CHANNEL_STATUSES)
 
-export const PRICE_ITEM_STATUSES = ['active', 'inactive'] as const
-export type PriceItemStatus = (typeof PRICE_ITEM_STATUSES)[number]
-export const priceItemStatusSchema = z.enum(PRICE_ITEM_STATUSES)
+export const CHANNEL_PRICE_STATUSES = ['active', 'inactive'] as const
+export type ChannelPriceStatus = (typeof CHANNEL_PRICE_STATUSES)[number]
+export const channelPriceStatusSchema = z.enum(CHANNEL_PRICE_STATUSES)
 
 /** Tasa fija de IVA general en Venezuela. */
 export const IVA_RATE = 0.16
@@ -66,39 +66,45 @@ export const listProductsQuerySchema = paginationSchema.extend({
   search: z.string().trim().max(120).optional(),
   status: productStatusSchema.optional(),
   type: productTypeSchema.optional(),
-  priceListId: z.string().trim().min(1).optional(),
+  channelId: z.string().trim().min(1).optional(),
 })
 
-export const createPriceListSchema = z.object({
+export const createChannelSchema = z.object({
   name: z.string().trim().min(2, 'El nombre es obligatorio').max(80),
   currency: currencySchema,
-  status: priceListStatusSchema.default('active'),
+  status: channelStatusSchema.default('active'),
   description: optionalText(500),
 })
 
-export const updatePriceListSchema = createPriceListSchema.partial()
+export const updateChannelSchema = createChannelSchema.partial()
 
-export const listPriceListsQuerySchema = paginationSchema.extend({
+export const listChannelsQuerySchema = paginationSchema.extend({
   search: z.string().trim().max(120).optional(),
-  status: priceListStatusSchema.optional(),
+  status: channelStatusSchema.optional(),
   currency: currencySchema.optional(),
 })
 
-export const upsertPriceListItemSchema = z.object({
+export const upsertChannelPriceSchema = z.object({
   productId: z.string().trim().min(1, 'Selecciona un producto'),
   price: moneyInputSchema,
-  status: priceItemStatusSchema.default('active'),
+  status: channelPriceStatusSchema.default('active'),
   position: z.coerce.number().int().min(0).default(0),
 })
 
-export const syncPriceListItemsSchema = z.object({
-  items: z.array(upsertPriceListItemSchema).max(2000),
+export const syncChannelPricesSchema = z.object({
+  items: z.array(upsertChannelPriceSchema).max(2000),
 })
 
-export const updatePriceListItemSchema = z.object({
+export const updateChannelPriceSchema = z.object({
   price: moneyInputSchema.optional(),
-  status: priceItemStatusSchema.optional(),
+  status: channelPriceStatusSchema.optional(),
   position: z.coerce.number().int().min(0).optional(),
+})
+
+/** Precio manual de un producto en un canal: crea el ítem si no existe. */
+export const setChannelPriceSchema = z.object({
+  price: moneyInputSchema,
+  status: channelPriceStatusSchema.default('active'),
 })
 
 export const setProductComponentsSchema = z.object({
@@ -115,11 +121,12 @@ export const setProductComponentsSchema = z.object({
 
 export type CreateProductInput = z.infer<typeof createProductSchema>
 export type UpdateProductInput = z.infer<typeof updateProductSchema>
-export type CreatePriceListInput = z.infer<typeof createPriceListSchema>
-export type UpdatePriceListInput = z.infer<typeof updatePriceListSchema>
-export type UpsertPriceListItemInput = z.infer<typeof upsertPriceListItemSchema>
-export type SyncPriceListItemsInput = z.infer<typeof syncPriceListItemsSchema>
-export type UpdatePriceListItemInput = z.infer<typeof updatePriceListItemSchema>
+export type CreateChannelInput = z.infer<typeof createChannelSchema>
+export type UpdateChannelInput = z.infer<typeof updateChannelSchema>
+export type UpsertChannelPriceInput = z.infer<typeof upsertChannelPriceSchema>
+export type SyncChannelPricesInput = z.infer<typeof syncChannelPricesSchema>
+export type UpdateChannelPriceInput = z.infer<typeof updateChannelPriceSchema>
+export type SetChannelPriceInput = z.infer<typeof setChannelPriceSchema>
 export type SetProductComponentsInput = z.infer<typeof setProductComponentsSchema>
 
 export type Product = {
@@ -135,43 +142,55 @@ export type Product = {
   updatedAt: string
 }
 
-export type PriceList = {
+/** Canal de precios. Antes se llamaba «lista de precios». */
+export type Channel = {
   id: string
   name: string
   currency: Currency
-  status: PriceListStatus
+  status: ChannelStatus
   description: string | null
   itemCount: number
   createdAt: string
   updatedAt: string
 }
 
-export type PriceListItem = {
+export type ChannelPrice = {
   id: string
-  priceListId: string
+  channelId: string
   productId: string
   productSku: string
   productName: string
   productType: ProductType
   productIvaEnabled: boolean
   price: number
-  status: PriceItemStatus
+  status: ChannelPriceStatus
   position: number
   createdAt: string
   updatedAt: string
 }
 
-/** Producto tal como lo ve el aliado: incluye el precio de su lista. */
+/** Precio de un producto dentro de un canal (matriz de precios). */
+export type ProductChannelPrice = {
+  channelId: string
+  channelName: string
+  channelCurrency: Currency
+  itemId: string | null
+  price: number | null
+  status: ChannelPriceStatus | null
+}
+
+/** Producto con sus precios por canal. */
 export type CatalogProduct = Product & {
   priceItemId: string | null
   price: number | null
-  priceStatus: PriceItemStatus | null
+  priceStatus: ChannelPriceStatus | null
   position: number
+  prices: ProductChannelPrice[]
 }
 
 export type PriceHistoryEntry = {
   id: string
-  priceListId: string
+  channelId: string
   productId: string
   productSku: string
   productName: string
@@ -204,12 +223,12 @@ export const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
   promotion: 'Promoción',
 }
 
-export const PRICE_LIST_STATUS_LABELS: Record<PriceListStatus, string> = {
-  active: 'Activa',
-  inactive: 'Inactiva',
+export const CHANNEL_STATUS_LABELS: Record<ChannelStatus, string> = {
+  active: 'Activo',
+  inactive: 'Inactivo',
 }
 
-export const PRICE_ITEM_STATUS_LABELS: Record<PriceItemStatus, string> = {
+export const CHANNEL_PRICE_STATUS_LABELS: Record<ChannelPriceStatus, string> = {
   active: 'Activo',
   inactive: 'Inactivo',
 }

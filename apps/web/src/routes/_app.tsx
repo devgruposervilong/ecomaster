@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { AppSidebar, MobileNav } from '@/components/app-sidebar'
 import { BrandMark } from '@/components/brand-mark'
+import { canAccessPath, firstAllowedPath } from '@/lib/access'
 import { AuthProvider } from '@/lib/auth-context'
 import { initials } from '@/lib/format'
 import { meQuery } from '@/lib/queries'
@@ -14,6 +15,11 @@ export const Route = createFileRoute('/_app')({
         to: '/login',
         search: { redirect: location.href },
       })
+    }
+
+    if (!canAccessPath(me, location.pathname)) {
+      const fallback = firstAllowedPath(me)
+      if (fallback !== location.pathname) throw redirect({ to: fallback })
     }
 
     return { me }
