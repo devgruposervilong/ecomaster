@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Package, Pencil } from 'lucide-react'
+import { Boxes, Loader2, Package, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Product, ProductType } from '@ecomaster/shared'
 import { PRODUCT_TYPE_LABELS, PRODUCT_TYPES } from '@ecomaster/shared'
+import { ProductComponentsEditor } from '@/components/catalog/product-components-editor'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -47,12 +48,18 @@ export function ProductFormDialog({
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
   const [trackInventory, setTrackInventory] = useState(true)
   const [categoryIds, setCategoryIds] = useState<string[]>([])
+  const [step, setStep] = useState<1 | 2>(1)
+  const [savedProduct, setSavedProduct] = useState<Product | null>(null)
   const isEditing = Boolean(product)
+  const persistedProduct = savedProduct ?? product ?? null
+  const isPromotion = type === 'promotion'
 
   useEffect(() => {
     if (!open) return
 
     setError(null)
+    setStep(1)
+    setSavedProduct(null)
     setSku(product?.sku ?? '')
     setBarcode(product?.barcode ?? '')
     setName(product?.name ?? '')
@@ -62,6 +69,14 @@ export function ProductFormDialog({
     setTrackInventory(product?.trackInventory ?? true)
     setCategoryIds(product?.categories.map((category) => category.id) ?? [])
   }, [open, product?.id])
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      setStep(1)
+      setSavedProduct(null)
+    }
+    onOpenChange(nextOpen)
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -80,18 +95,29 @@ export function ProductFormDialog({
         categoryIds,
       })
 
-      if (product) {
-        await apiFetch(`/api/catalog/products/${product.id}`, { method: 'PATCH', body })
-      } else {
-        await apiFetch('/api/catalog/products', { method: 'POST', body })
-      }
+      const response = await apiFetch<{ data: Product }>(
+        persistedProduct
+          ? `/api/catalog/products/${persistedProduct.id}`
+          : '/api/catalog/products',
+        { method: persistedProduct ? 'PATCH' : 'POST', body },
+      )
 
       await queryClient.invalidateQueries({ queryKey: ['products'] })
       await queryClient.invalidateQueries({ queryKey: ['categories'] })
       await queryClient.invalidateQueries({ queryKey: ['channel-prices'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      toast.success(isEditing ? 'Producto actualizado' : 'Producto creado')
-      onOpenChange(false)
+
+      if (isPromotion) {
+        setSavedProduct(response.data)
+        setStep(2)
+        toast.success(
+          persistedProduct ? 'Datos de la promoción actualizados' : 'Promoción creada',
+        )
+        return
+      }
+
+      toast.success(persistedProduct ? 'Producto actualizado' : 'Producto creado')
+      handleOpenChange(false)
     } catch (submitError) {
       setError(errorMessage(submitError))
     } finally {
@@ -100,23 +126,49 @@ export function ProductFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-black/10 sm:max-w-xl">
         <DialogHeader>
           <div className="mb-1 flex size-10 items-center justify-center rounded-2xl bg-[#BCD86C]">
-            {isEditing ? (
+            {step === 2 ? (
+              <Boxes className="size-4 text-[#0A0A0A]" />
+            ) : isEditing ? (
               <Pencil className="size-4 text-[#0A0A0A]" />
             ) : (
               <Package className="size-4 text-[#0A0A0A]" />
             )}
           </div>
-          <DialogTitle>{isEditing ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
+          {isPromotion ? (
+            <span className="mb-1 inline-flex w-fit rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-black/45">
+              Paso {step} de 2
+            </span>
+          ) : null}
+          <DialogTitle>
+            {step === 2
+              ? 'Componentes de la promoción'
+              : isEditing
+                ? 'Editar producto'
+                : 'Nuevo producto'}
+          </DialogTitle>
           <DialogDescription>
-            El producto es global. El precio se define por canal, no aquí.
+            {step === 2
+              ? `${persistedProduct?.name ?? 'La promoción'}: los datos ya están guardados. Selecciona los productos que la componen para poder venderla.`
+              : 'El producto es global. El precio se define por canal, no aquí.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        {step === 2 ? (
+          <ProductComponentsEditor
+            product={persistedProduct}
+            active={step === 2}
+            onCancel={() => setStep(1)}
+            cancelLabel="Volver"
+            saveLabel={isEditing ? 'Guardar promoción' : 'Crear promoción'}
+            successMessage={isEditing ? 'Promoción actualizada' : 'Promoción creada'}
+            onSaved={() => handleOpenChange(false)}
+          />
+        ) : (
+          <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="sku">SKU / código Profit</Label>
@@ -293,8 +345,8 @@ export function ProductFormDialog({
 
           {type === 'promotion' ? (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12px] leading-5 text-amber-800">
-              Después de guardar la promoción, usa el botón de componentes para indicar qué
-              productos la componen y cuántas unidades descuenta cada venta.
+              Al continuar pasarás al paso 2 para indicar qué productos componen la promoción y
+              cuántas unidades descuenta cada venta.
             </p>
           ) : null}
 
@@ -308,7 +360,7 @@ export function ProductFormDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
               className="rounded-xl border-black/10"
             >
               Cancelar
@@ -319,10 +371,11 @@ export function ProductFormDialog({
               className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
             >
               {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
-              {isEditing ? 'Guardar cambios' : 'Crear producto'}
+              {isPromotion ? 'Continuar' : isEditing ? 'Guardar cambios' : 'Crear producto'}
             </Button>
           </DialogFooter>
-        </form>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   )

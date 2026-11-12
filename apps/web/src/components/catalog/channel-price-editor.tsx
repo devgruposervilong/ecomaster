@@ -38,7 +38,7 @@ export function ProductChannelPrices({
   }
 
   return (
-    <div className="min-w-[270px] divide-y divide-black/[0.04]">
+    <div className="min-w-[220px] divide-y divide-black/[0.04]">
       {product.prices.map((entry) => (
         <ChannelPriceRow
           key={entry.channelId}
@@ -163,56 +163,73 @@ function ChannelPriceRow({
       : 'Sin precio'
 
   return (
-    <div className="flex items-center gap-1.5 py-1.5 first:pt-0 last:pb-0">
-      <Switch
-        checked={available}
-        onCheckedChange={() => void toggleAvailability()}
-        disabled={readOnly || saving}
-        title={`${available ? 'Desactivar' : 'Activar'} producto en ${entry.channelName}`}
-        aria-label={`Producto activo en ${entry.channelName}`}
-        className="shrink-0"
-      />
+    <div className="py-1.5 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-1.5">
+        <Switch
+          checked={available}
+          onCheckedChange={() => void toggleAvailability()}
+          disabled={readOnly || saving}
+          title={`${available ? 'Desactivar' : 'Activar'} producto en ${entry.channelName}`}
+          aria-label={`Producto activo en ${entry.channelName}`}
+          className="shrink-0"
+        />
 
-      <span
-        className="w-[72px] shrink-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45"
-        title={entry.channelName}
-      >
-        {entry.channelName}
-      </span>
-
-      {readOnly ? (
-        <span className="w-[90px] shrink-0 whitespace-nowrap text-right text-[12px] tabular-nums text-[#0A0A0A]">
-          {entry.price === null ? '—' : formatAmount(entry.price, entry.channelCurrency)}
+        <span
+          className="w-[68px] shrink-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45"
+          title={entry.channelName}
+        >
+          {entry.channelName}
         </span>
-      ) : (
-        <div className="relative w-[78px] shrink-0">
-          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-black/35">
-            {currencySymbol(entry.channelCurrency)}
-          </span>
-          <Input
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            onBlur={() => void commit()}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                event.currentTarget.blur()
-              }
-            }}
-            placeholder="—"
-            inputMode="decimal"
-            disabled={saving}
-            aria-label={`Precio de ${product.name} en ${entry.channelName}`}
-            className="h-8 rounded-lg border-black/15 pl-6 pr-2 text-right text-[12px] tabular-nums"
-          />
-        </div>
-      )}
 
-      <span
+        {readOnly ? (
+          <span className="w-[90px] shrink-0 whitespace-nowrap text-right text-[12px] tabular-nums text-[#0A0A0A]">
+            {entry.price === null ? '—' : formatAmount(entry.price, entry.channelCurrency)}
+          </span>
+        ) : (
+          <div className="relative w-[74px] shrink-0">
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-black/35">
+              {currencySymbol(entry.channelCurrency)}
+            </span>
+            <Input
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              onBlur={() => void commit()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  event.currentTarget.blur()
+                }
+              }}
+              placeholder="—"
+              inputMode="decimal"
+              disabled={saving}
+              aria-label={`Precio de ${product.name} en ${entry.channelName}`}
+              className="h-8 rounded-lg border-black/15 pl-6 pr-2 text-right text-[12px] tabular-nums"
+            />
+          </div>
+        )}
+
+        {entry.itemId && onHistory ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-5 shrink-0 rounded-md text-black/30 hover:text-[#0A0A0A]"
+            onClick={() => onHistory(entry.channelId)}
+            title={`Historial de ${entry.channelName}`}
+          >
+            <History className="size-3" />
+          </Button>
+        ) : null}
+
+        {saving ? <Loader2 className="size-3 shrink-0 animate-spin text-black/35" /> : null}
+      </div>
+
+      <p
         className={
           available
-            ? 'min-w-0 flex-1 truncate text-[10px] leading-4 text-black/40'
-            : 'min-w-0 flex-1 truncate text-[10px] leading-4 text-black/30'
+            ? 'mt-0.5 truncate pl-[38px] text-[10px] leading-4 text-black/40'
+            : 'mt-0.5 truncate pl-[38px] text-[10px] leading-4 text-black/30'
         }
         title={
           !available
@@ -223,22 +240,7 @@ function ChannelPriceRow({
         }
       >
         {statusLabel}
-      </span>
-
-      {entry.itemId && onHistory ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-5 shrink-0 rounded-md text-black/30 hover:text-[#0A0A0A]"
-          onClick={() => onHistory(entry.channelId)}
-          title={`Historial de ${entry.channelName}`}
-        >
-          <History className="size-3" />
-        </Button>
-      ) : null}
-
-      {saving ? <Loader2 className="size-3 shrink-0 animate-spin text-black/35" /> : null}
+      </p>
     </div>
   )
 }

@@ -452,25 +452,25 @@ function CatalogPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] table-fixed text-left">
+            <table className="w-full min-w-[1088px] table-fixed text-left">
               <thead className="bg-black/[0.02]">
                 <tr>
-                  <th className="w-[204px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[274px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Producto
                   </th>
-                  <th className="w-[78px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[80px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Tipo
                   </th>
-                  <th className="w-[129px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[114px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Categorías
                   </th>
-                  <th className="w-[96px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[94px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     IVA
                   </th>
-                  <th className="w-[305px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[260px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     {isGlobal ? 'Canales y precios' : 'Precio'}
                   </th>
-                  <th className="w-[96px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[94px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Estado
                   </th>
                   <th className="w-[172px] px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
@@ -482,8 +482,8 @@ function CatalogPage() {
                 {rows.map((product) => (
                   <tr key={product.id} className="border-t border-black/[0.06] hover:bg-black/[0.015]">
                     <td className="px-4 py-3 align-top">
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]">
                           {product.type === 'promotion' ? (
                             <Boxes className="size-4 text-black/45" />
                           ) : (
@@ -492,7 +492,7 @@ function CatalogPage() {
                         </div>
                         <div className="min-w-0">
                           <p
-                            className="truncate text-[13px] font-medium text-[#0A0A0A]"
+                            className="whitespace-normal break-words text-[13px] font-medium leading-[18px] text-[#0A0A0A]"
                             title={product.name}
                           >
                             {product.name}
