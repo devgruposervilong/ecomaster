@@ -23,6 +23,8 @@ import { Route as AppVentasRouteImport } from './routes/_app/ventas'
 import { Route as InvitacionTokenRouteImport } from './routes/invitacion.$token'
 import { Route as AppAdminAliadosRouteImport } from './routes/_app/admin/aliados'
 import { Route as AppAdminUsuariosRouteImport } from './routes/_app/admin/usuarios'
+import { Route as AppVentasIndexRouteImport } from './routes/_app/ventas.index'
+import { Route as AppVentasHistorialRouteImport } from './routes/_app/ventas.historial'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -93,6 +95,16 @@ const AppAdminUsuariosRoute = AppAdminUsuariosRouteImport.update({
   path: '/admin/usuarios',
   getParentRoute: () => AppRoute,
 } as any)
+const AppVentasIndexRoute = AppVentasIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppVentasRoute,
+} as any)
+const AppVentasHistorialRoute = AppVentasHistorialRouteImport.update({
+  id: '/historial',
+  path: '/historial',
+  getParentRoute: () => AppVentasRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -104,10 +116,12 @@ export interface FileRoutesByFullPath {
   '/inventario': typeof AppInventarioRoute
   '/reportes': typeof AppReportesRoute
   '/tienda': typeof AppTiendaRoute
-  '/ventas': typeof AppVentasRoute
+  '/ventas': typeof AppVentasRouteWithChildren
   '/invitacion/$token': typeof InvitacionTokenRoute
   '/admin/aliados': typeof AppAdminAliadosRoute
   '/admin/usuarios': typeof AppAdminUsuariosRoute
+  '/ventas/historial': typeof AppVentasHistorialRoute
+  '/ventas/': typeof AppVentasIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -118,11 +132,12 @@ export interface FileRoutesByTo {
   '/inventario': typeof AppInventarioRoute
   '/reportes': typeof AppReportesRoute
   '/tienda': typeof AppTiendaRoute
-  '/ventas': typeof AppVentasRoute
   '/invitacion/$token': typeof InvitacionTokenRoute
   '/': typeof AppIndexRoute
   '/admin/aliados': typeof AppAdminAliadosRoute
   '/admin/usuarios': typeof AppAdminUsuariosRoute
+  '/ventas/historial': typeof AppVentasHistorialRoute
+  '/ventas': typeof AppVentasIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -135,11 +150,13 @@ export interface FileRoutesById {
   '/_app/inventario': typeof AppInventarioRoute
   '/_app/reportes': typeof AppReportesRoute
   '/_app/tienda': typeof AppTiendaRoute
-  '/_app/ventas': typeof AppVentasRoute
+  '/_app/ventas': typeof AppVentasRouteWithChildren
   '/invitacion/$token': typeof InvitacionTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/admin/aliados': typeof AppAdminAliadosRoute
   '/_app/admin/usuarios': typeof AppAdminUsuariosRoute
+  '/_app/ventas/historial': typeof AppVentasHistorialRoute
+  '/_app/ventas/': typeof AppVentasIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,6 +174,8 @@ export interface FileRouteTypes {
     | '/invitacion/$token'
     | '/admin/aliados'
     | '/admin/usuarios'
+    | '/ventas/historial'
+    | '/ventas/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -167,11 +186,12 @@ export interface FileRouteTypes {
     | '/inventario'
     | '/reportes'
     | '/tienda'
-    | '/ventas'
     | '/invitacion/$token'
     | '/'
     | '/admin/aliados'
     | '/admin/usuarios'
+    | '/ventas/historial'
+    | '/ventas'
   id:
     | '__root__'
     | '/_app'
@@ -188,6 +208,8 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/admin/aliados'
     | '/_app/admin/usuarios'
+    | '/_app/ventas/historial'
+    | '/_app/ventas/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -297,8 +319,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsuariosRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ventas/': {
+      id: '/_app/ventas/'
+      path: '/'
+      fullPath: '/ventas/'
+      preLoaderRoute: typeof AppVentasIndexRouteImport
+      parentRoute: typeof AppVentasRoute
+    }
+    '/_app/ventas/historial': {
+      id: '/_app/ventas/historial'
+      path: '/historial'
+      fullPath: '/ventas/historial'
+      preLoaderRoute: typeof AppVentasHistorialRouteImport
+      parentRoute: typeof AppVentasRoute
+    }
   }
 }
+
+interface AppVentasRouteChildren {
+  AppVentasHistorialRoute: typeof AppVentasHistorialRoute
+  AppVentasIndexRoute: typeof AppVentasIndexRoute
+}
+
+const AppVentasRouteChildren: AppVentasRouteChildren = {
+  AppVentasHistorialRoute: AppVentasHistorialRoute,
+  AppVentasIndexRoute: AppVentasIndexRoute,
+}
+
+const AppVentasRouteWithChildren = AppVentasRoute._addFileChildren(
+  AppVentasRouteChildren,
+)
 
 interface AppRouteChildren {
   AppAjustesRoute: typeof AppAjustesRoute
@@ -307,7 +357,7 @@ interface AppRouteChildren {
   AppInventarioRoute: typeof AppInventarioRoute
   AppReportesRoute: typeof AppReportesRoute
   AppTiendaRoute: typeof AppTiendaRoute
-  AppVentasRoute: typeof AppVentasRoute
+  AppVentasRoute: typeof AppVentasRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
   AppAdminAliadosRoute: typeof AppAdminAliadosRoute
   AppAdminUsuariosRoute: typeof AppAdminUsuariosRoute
@@ -320,7 +370,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppInventarioRoute: AppInventarioRoute,
   AppReportesRoute: AppReportesRoute,
   AppTiendaRoute: AppTiendaRoute,
-  AppVentasRoute: AppVentasRoute,
+  AppVentasRoute: AppVentasRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
   AppAdminAliadosRoute: AppAdminAliadosRoute,
   AppAdminUsuariosRoute: AppAdminUsuariosRoute,

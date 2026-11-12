@@ -36,7 +36,7 @@ type NavItem = {
 
 const operationNav: NavItem[] = [
   { to: '/', label: 'Inicio', icon: LayoutDashboard, module: 'dashboard' },
-  { to: '/ventas', label: 'Ventas', icon: ShoppingCart, soon: true, module: 'sales' },
+  { to: '/ventas', label: 'Ventas', icon: ShoppingCart, module: 'sales' },
   { to: '/catalogo', label: 'Catálogo', icon: Package, module: 'catalog' },
   { to: '/inventario', label: 'Inventario', icon: Boxes, soon: true, module: 'inventory' },
   { to: '/finanzas', label: 'Finanzas', icon: Wallet, soon: true, module: 'finance' },
