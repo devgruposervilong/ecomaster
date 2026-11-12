@@ -129,9 +129,9 @@ export function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border-black/10 sm:max-w-xl">
+      <DialogContent className="max-h-[calc(100vh-1rem)] gap-3 overflow-y-auto rounded-2xl border-black/10 p-4 sm:max-w-2xl sm:p-6">
         <DialogHeader>
-          <div className="mb-1 flex size-10 items-center justify-center rounded-2xl bg-[#BCD86C]">
+          <div className="mb-0.5 flex size-9 items-center justify-center rounded-2xl bg-[#BCD86C]">
             {step === 2 ? (
               <Boxes className="size-4 text-[#0A0A0A]" />
             ) : isEditing ? (
@@ -157,6 +157,12 @@ export function ProductFormDialog({
               ? `${persistedProduct?.name ?? 'La promoción'}: los datos ya están guardados. Selecciona los productos que la componen para poder venderla.`
               : 'El producto es global. El precio se define por canal, no aquí.'}
           </DialogDescription>
+          {step === 1 && isPromotion ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-[11px] leading-4 text-amber-800">
+              Al continuar pasarás al paso 2 para indicar qué productos componen la promoción y
+              cuántas unidades descuenta cada venta.
+            </p>
+          ) : null}
         </DialogHeader>
 
         {step === 2 ? (
@@ -170,8 +176,8 @@ export function ProductFormDialog({
             onSaved={() => handleOpenChange(false)}
           />
         ) : (
-          <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <form className="space-y-2.5" onSubmit={handleSubmit}>
+          <div className="grid gap-3 min-[520px]:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="sku">SKU / código Profit</Label>
               <Input
@@ -179,7 +185,7 @@ export function ProductFormDialog({
                 value={sku}
                 onChange={(event) => setSku(event.target.value)}
                 placeholder="Ej. 1228R"
-                className="h-11 rounded-xl border-black/15"
+                className="h-10 rounded-xl border-black/15"
                 required
               />
             </div>
@@ -190,7 +196,7 @@ export function ProductFormDialog({
                 value={barcode}
                 onChange={(event) => setBarcode(event.target.value)}
                 placeholder="Ej. 7591234567890"
-                className="h-11 rounded-xl border-black/15"
+                className="h-10 rounded-xl border-black/15"
               />
             </div>
           </div>
@@ -202,16 +208,16 @@ export function ProductFormDialog({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Ej. Shampoo de coco 500 ml"
-              className="h-11 rounded-xl border-black/15"
+              className="h-10 rounded-xl border-black/15"
               required
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 min-[520px]:grid-cols-2">
             <div className="space-y-2">
               <Label>Tipo</Label>
               <Select value={type} onValueChange={(value) => setType(value as ProductType)}>
-                <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
+                <SelectTrigger className="h-10 w-full rounded-xl border-black/15">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -229,7 +235,7 @@ export function ProductFormDialog({
                 value={status}
                 onValueChange={(value) => setStatus(value as 'active' | 'inactive')}
               >
-                <SelectTrigger className="h-11 w-full rounded-xl border-black/15">
+                <SelectTrigger className="h-10 w-full rounded-xl border-black/15">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,14 +256,14 @@ export function ProductFormDialog({
             {categoryOptions.isLoading ? (
               <div className="h-20 animate-pulse rounded-xl bg-black/[0.04]" />
             ) : categoryOptions.data && categoryOptions.data.length > 0 ? (
-              <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-black/10 p-2">
+              <div className="grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-black/10 p-2 min-[480px]:grid-cols-2 min-[560px]:grid-cols-3">
                 {categoryOptions.data.map((category) => {
                   const checked = categoryIds.includes(category.id)
 
                   return (
                     <label
                       key={category.id}
-                      className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-black/[0.03]"
+                      className="flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-black/[0.03]"
                     >
                       <input
                         type="checkbox"
@@ -269,11 +275,13 @@ export function ProductFormDialog({
                               : current.filter((id) => id !== category.id),
                           )
                         }
-                        className="size-4 accent-[#0A0A0A]"
+                        className="size-4 shrink-0 accent-[#0A0A0A]"
                       />
-                      <span className="text-[13px] text-[#0A0A0A]">{category.name}</span>
+                      <span className="truncate text-[13px] text-[#0A0A0A]" title={category.name}>
+                        {category.name}
+                      </span>
                       {category.status === 'inactive' ? (
-                        <span className="rounded-full border border-black/10 px-2 py-0.5 text-[10px] text-black/45">
+                        <span className="shrink-0 rounded-full border border-black/10 px-2 py-0.5 text-[10px] text-black/45">
                           Inactiva
                         </span>
                       ) : null}
@@ -289,7 +297,7 @@ export function ProductFormDialog({
           </div>
 
           <div className="divide-y divide-black/[0.06] rounded-2xl border border-black/10">
-            <div className="flex items-center justify-between gap-4 p-4">
+            <div className="flex items-center justify-between gap-4 p-3">
               <div className="min-w-0">
                 <Label htmlFor="ivaEnabled" className="text-sm font-medium text-[#0A0A0A]">
                   Cobra IVA (16%)
@@ -316,7 +324,7 @@ export function ProductFormDialog({
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between gap-4 p-4">
+            <div className="flex items-center justify-between gap-4 p-3">
               <div className="min-w-0">
                 <Label htmlFor="trackInventory" className="text-sm font-medium text-[#0A0A0A]">
                   Controlar inventario
@@ -345,20 +353,13 @@ export function ProductFormDialog({
             </div>
           </div>
 
-          {type === 'promotion' ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12px] leading-5 text-amber-800">
-              Al continuar pasarás al paso 2 para indicar qué productos componen la promoción y
-              cuántas unidades descuenta cada venta.
-            </p>
-          ) : null}
-
           {error ? (
             <div className="rounded-xl border border-black/10 bg-black/[0.03] px-3.5 py-3 text-sm">
               {error}
             </div>
           ) : null}
 
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="gap-2 pt-2 min-[520px]:flex-row min-[520px]:justify-end">
             <Button
               type="button"
               variant="outline"
