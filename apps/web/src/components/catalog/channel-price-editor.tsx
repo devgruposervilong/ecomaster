@@ -37,7 +37,7 @@ export function ProductChannelPrices({
   }
 
   return (
-    <div className="min-w-[350px] divide-y divide-black/[0.04]">
+    <div className="min-w-[270px] divide-y divide-black/[0.04]">
       {product.prices.map((entry) => (
         <ChannelPriceRow
           key={entry.channelId}
@@ -134,9 +134,9 @@ function ChannelPriceRow({
   }
 
   return (
-    <div className="flex items-center gap-2 py-1.5 first:pt-0 last:pb-0">
+    <div className="flex items-center gap-1.5 py-1.5 first:pt-0 last:pb-0">
       <span
-        className="w-[96px] shrink-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45"
+        className="w-[76px] shrink-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45"
         title={entry.channelName}
       >
         {entry.channelName}
@@ -147,7 +147,7 @@ function ChannelPriceRow({
           {entry.price === null ? '—' : formatAmount(entry.price, entry.channelCurrency)}
         </span>
       ) : (
-        <div className="relative w-[92px] shrink-0">
+        <div className="relative w-[80px] shrink-0">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-black/35">
             {currencySymbol(entry.channelCurrency)}
           </span>
@@ -195,12 +195,11 @@ function ChannelPriceRow({
         </button>
       ) : null}
 
-      <span className="min-w-0 flex-1 truncate text-[10px] leading-4 text-black/40">
-        {entry.itemId
-          ? entry.status === 'active'
-            ? 'Activo'
-            : 'Inactivo'
-          : 'Sin precio · se cobra a mano'}
+      <span
+        className="min-w-0 flex-1 truncate text-[10px] leading-4 text-black/40"
+        title={entry.itemId ? undefined : 'Sin precio: se cobra a mano en la venta'}
+      >
+        {entry.itemId ? (entry.status === 'active' ? 'Activo' : 'Inactivo') : 'Sin precio'}
       </span>
 
       {entry.itemId && onHistory ? (
@@ -208,7 +207,7 @@ function ChannelPriceRow({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="size-6 shrink-0 rounded-md text-black/30 hover:text-[#0A0A0A]"
+          className="size-5 shrink-0 rounded-md text-black/30 hover:text-[#0A0A0A]"
           onClick={() => onHistory(entry.channelId)}
           title={`Historial de ${entry.channelName}`}
         >

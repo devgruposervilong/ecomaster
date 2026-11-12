@@ -452,28 +452,28 @@ function CatalogPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-left">
+            <table className="w-full min-w-[1080px] table-fixed text-left">
               <thead className="bg-black/[0.02]">
                 <tr>
-                  <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[204px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Producto
                   </th>
-                  <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[78px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Tipo
                   </th>
-                  <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[135px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Categorías
                   </th>
-                  <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[90px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     IVA
                   </th>
-                  <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[305px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     {isGlobal ? 'Precios por canal' : 'Precio'}
                   </th>
-                  <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[96px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Estado
                   </th>
-                  <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[172px] px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Acciones
                   </th>
                 </tr>
@@ -481,7 +481,7 @@ function CatalogPage() {
               <tbody>
                 {rows.map((product) => (
                   <tr key={product.id} className="border-t border-black/[0.06] hover:bg-black/[0.015]">
-                    <td className="w-[260px] px-4 py-3 align-top">
+                    <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-3">
                         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]">
                           {product.type === 'promotion' ? (
@@ -491,7 +491,10 @@ function CatalogPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-[13px] font-medium text-[#0A0A0A]">
+                          <p
+                            className="truncate text-[13px] font-medium text-[#0A0A0A]"
+                            title={product.name}
+                          >
                             {product.name}
                           </p>
                           <p className="truncate text-[11px] text-black/40">
@@ -501,18 +504,19 @@ function CatalogPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 align-top text-[12px] text-black/60">
+                    <td className="whitespace-nowrap px-4 py-3 align-top text-[11px] text-black/60">
                       {PRODUCT_TYPE_LABELS[product.type]}
                     </td>
                     <td className="px-4 py-3 align-top">
                       {product.categories.length === 0 ? (
                         <span className="text-[11px] text-black/30">Sin categoría</span>
                       ) : (
-                        <div className="flex max-w-[220px] flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1">
                           {product.categories.map((category) => (
                             <span
                               key={category.id}
-                              className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-black/55"
+                              className="inline-block max-w-full truncate rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium leading-4 text-black/55"
+                              title={category.name}
                             >
                               {category.name}
                             </span>
@@ -520,7 +524,7 @@ function CatalogPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 align-top">
+                    <td className="whitespace-nowrap px-4 py-3 align-top">
                       <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[11px] font-medium text-black/60">
                         {product.ivaEnabled ? '16%' : 'Exento'}
                       </span>
@@ -550,11 +554,11 @@ function CatalogPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 align-top">
+                    <td className="whitespace-nowrap px-4 py-3 align-top">
                       <StatusBadge status={product.status} />
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex flex-wrap items-center justify-end gap-1">
                         <Button
                           type="button"
                           variant="ghost"
