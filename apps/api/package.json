@@ -16,6 +16,9 @@
     "db:create": "cf d1 create --name ecomaster-db",
     "db:local": "cf d1 migrations apply 0352d618-75f0-4803-9531-e27ce0fb0f59 --local --dir migrations --persist-to .wrangler/state",
     "db:remote": "cf d1 migrations apply 0352d618-75f0-4803-9531-e27ce0fb0f59 --dir migrations",
+    "catalog:seed": "node scripts/import-products.mts",
+    "catalog:seed:local": "node scripts/apply-products-seed.mts --local",
+    "catalog:seed:remote": "node scripts/apply-products-seed.mts --remote",
     "r2:create": "cf r2 buckets create-by-name ecomaster-storage"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import type {
   CatalogProduct,
+  Category,
   Currency,
   DashboardSummary,
   InvitePreview,
@@ -80,8 +81,16 @@ export type PartnersQuery = {
 export type ProductsQuery = {
   search?: string
   channelId?: string
+  categoryId?: string
   status?: ProductStatus
   type?: ProductType
+  page?: number
+  pageSize?: number
+}
+
+export type CategoriesQuery = {
+  search?: string
+  status?: 'active' | 'inactive'
   page?: number
   pageSize?: number
 }
@@ -176,6 +185,7 @@ export function productsQuery(params: ProductsQuery = {}) {
         withQuery('/api/catalog/products', {
           search: params.search,
           channelId: params.channelId,
+          categoryId: params.categoryId,
           status: params.status,
           type: params.type,
           page: params.page,
@@ -185,6 +195,31 @@ export function productsQuery(params: ProductsQuery = {}) {
     placeholderData: keepPreviousData,
   })
 }
+
+export function categoriesQuery(params: CategoriesQuery = {}) {
+  return queryOptions({
+    queryKey: ['categories', params],
+    queryFn: () =>
+      apiFetch<Paginated<Category>>(
+        withQuery('/api/catalog/categories', {
+          search: params.search,
+          status: params.status,
+          page: params.page,
+          pageSize: params.pageSize,
+        }),
+      ),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export const categoryOptionsQuery = queryOptions({
+  queryKey: ['category-options'],
+  queryFn: () =>
+    apiFetch<{ data: Array<Pick<Category, 'id' | 'name' | 'status'>> }>(
+      '/api/catalog/categories/options',
+    ).then((response) => response.data),
+  staleTime: 60_000,
+})
 
 export function channelsQuery(params: ChannelsQuery = {}) {
   return queryOptions({

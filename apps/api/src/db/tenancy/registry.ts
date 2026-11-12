@@ -7,6 +7,7 @@ import { exchangeRates } from '../schema/exchange-rates'
 import { healthchecks } from '../schema/health'
 import { invites } from '../schema/invites'
 import { partners } from '../schema/partners'
+import { categories, productCategories } from '../schema/categories'
 import { channels, channelPrices, priceHistory } from '../schema/channels'
 import { productComponents } from '../schema/product-components'
 import { products } from '../schema/products'
@@ -112,6 +113,16 @@ const TABLE_POLICIES: Record<string, TablePolicy> = {
     requireWhereOnWrite: true,
   },
   [getTableName(productComponents)]: {
+    kind: 'global',
+    access: { partner: ['select'], admin: ALL, system: ['select'] },
+    requireWhereOnWrite: true,
+  },
+  [getTableName(categories)]: {
+    kind: 'global',
+    access: { partner: ['select'], admin: ALL, system: ['select'] },
+    requireWhereOnWrite: true,
+  },
+  [getTableName(productCategories)]: {
     kind: 'global',
     access: { partner: ['select'], admin: ALL, system: ['select'] },
     requireWhereOnWrite: true,

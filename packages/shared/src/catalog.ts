@@ -9,6 +9,10 @@ export const PRODUCT_STATUSES = ['active', 'inactive'] as const
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number]
 export const productStatusSchema = z.enum(PRODUCT_STATUSES)
 
+export const CATEGORY_STATUSES = ['active', 'inactive'] as const
+export type CategoryStatus = (typeof CATEGORY_STATUSES)[number]
+export const categoryStatusSchema = z.enum(CATEGORY_STATUSES)
+
 export const CHANNEL_STATUSES = ['active', 'inactive'] as const
 export type ChannelStatus = (typeof CHANNEL_STATUSES)[number]
 export const channelStatusSchema = z.enum(CHANNEL_STATUSES)
@@ -58,6 +62,10 @@ export const createProductSchema = z.object({
   ivaEnabled: z.boolean().default(false),
   status: productStatusSchema.default('active'),
   trackInventory: z.boolean().default(true),
+  categoryIds: z
+    .array(z.string().trim().min(1, 'Selecciona una categoría'))
+    .max(20, 'Un producto no puede tener más de 20 categorías')
+    .default([]),
 })
 
 export const updateProductSchema = createProductSchema.partial()
@@ -66,7 +74,21 @@ export const listProductsQuerySchema = paginationSchema.extend({
   search: z.string().trim().max(120).optional(),
   status: productStatusSchema.optional(),
   type: productTypeSchema.optional(),
+  categoryId: z.string().trim().min(1).optional(),
   channelId: z.string().trim().min(1).optional(),
+})
+
+export const createCategorySchema = z.object({
+  name: z.string().trim().min(2, 'El nombre es obligatorio').max(80),
+  description: optionalText(300),
+  status: categoryStatusSchema.default('active'),
+})
+
+export const updateCategorySchema = createCategorySchema.partial()
+
+export const listCategoriesQuerySchema = paginationSchema.extend({
+  search: z.string().trim().max(120).optional(),
+  status: categoryStatusSchema.optional(),
 })
 
 export const createChannelSchema = z.object({
@@ -121,6 +143,9 @@ export const setProductComponentsSchema = z.object({
 
 export type CreateProductInput = z.infer<typeof createProductSchema>
 export type UpdateProductInput = z.infer<typeof updateProductSchema>
+export type CreateCategoryInput = z.infer<typeof createCategorySchema>
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>
+export type ListCategoriesQuery = z.infer<typeof listCategoriesQuerySchema>
 export type CreateChannelInput = z.infer<typeof createChannelSchema>
 export type UpdateChannelInput = z.infer<typeof updateChannelSchema>
 export type UpsertChannelPriceInput = z.infer<typeof upsertChannelPriceSchema>
@@ -138,6 +163,25 @@ export type Product = {
   ivaEnabled: boolean
   status: ProductStatus
   trackInventory: boolean
+  categories: ProductCategory[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** Referencia de categoría incluida en un producto. */
+export type ProductCategory = {
+  id: string
+  name: string
+  status: CategoryStatus
+}
+
+/** Categoría global con su conteo de productos. */
+export type Category = {
+  id: string
+  name: string
+  description: string | null
+  status: CategoryStatus
+  productCount: number
   createdAt: string
   updatedAt: string
 }
@@ -221,6 +265,11 @@ export const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
   article: 'Artículo',
   service: 'Servicio',
   promotion: 'Promoción',
+}
+
+export const CATEGORY_STATUS_LABELS: Record<CategoryStatus, string> = {
+  active: 'Activa',
+  inactive: 'Inactiva',
 }
 
 export const CHANNEL_STATUS_LABELS: Record<ChannelStatus, string> = {

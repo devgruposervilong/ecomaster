@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Package, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Product, ProductType } from '@ecomaster/shared'
@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { apiFetch, errorMessage, jsonBody } from '@/lib/api'
+import { categoryOptionsQuery } from '@/lib/queries'
 
 export function ProductFormDialog({
   open,
@@ -34,6 +35,7 @@ export function ProductFormDialog({
   product?: Product | null
 }) {
   const queryClient = useQueryClient()
+  const categoryOptions = useQuery({ ...categoryOptionsQuery, enabled: open })
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [sku, setSku] = useState('')
@@ -43,6 +45,7 @@ export function ProductFormDialog({
   const [ivaEnabled, setIvaEnabled] = useState(false)
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
   const [trackInventory, setTrackInventory] = useState(true)
+  const [categoryIds, setCategoryIds] = useState<string[]>([])
   const isEditing = Boolean(product)
 
   useEffect(() => {
@@ -56,6 +59,7 @@ export function ProductFormDialog({
     setIvaEnabled(product?.ivaEnabled ?? false)
     setStatus(product?.status ?? 'active')
     setTrackInventory(product?.trackInventory ?? true)
+    setCategoryIds(product?.categories.map((category) => category.id) ?? [])
   }, [open, product?.id])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -72,6 +76,7 @@ export function ProductFormDialog({
         ivaEnabled,
         status,
         trackInventory,
+        categoryIds,
       })
 
       if (product) {
@@ -81,6 +86,7 @@ export function ProductFormDialog({
       }
 
       await queryClient.invalidateQueries({ queryKey: ['products'] })
+      await queryClient.invalidateQueries({ queryKey: ['categories'] })
       await queryClient.invalidateQueries({ queryKey: ['channel-prices'] })
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success(isEditing ? 'Producto actualizado' : 'Producto creado')
@@ -177,6 +183,54 @@ export function ProductFormDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Categorías</Label>
+              <span className="text-[11px] text-black/40">
+                {categoryIds.length} seleccionada{categoryIds.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            {categoryOptions.isLoading ? (
+              <div className="h-20 animate-pulse rounded-xl bg-black/[0.04]" />
+            ) : categoryOptions.data && categoryOptions.data.length > 0 ? (
+              <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-black/10 p-2">
+                {categoryOptions.data.map((category) => {
+                  const checked = categoryIds.includes(category.id)
+
+                  return (
+                    <label
+                      key={category.id}
+                      className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-black/[0.03]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) =>
+                          setCategoryIds((current) =>
+                            event.target.checked
+                              ? [...current, category.id]
+                              : current.filter((id) => id !== category.id),
+                          )
+                        }
+                        className="size-4 accent-[#0A0A0A]"
+                      />
+                      <span className="text-[13px] text-[#0A0A0A]">{category.name}</span>
+                      {category.status === 'inactive' ? (
+                        <span className="rounded-full border border-black/10 px-2 py-0.5 text-[10px] text-black/45">
+                          Inactiva
+                        </span>
+                      ) : null}
+                    </label>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="rounded-xl border border-dashed border-black/15 px-3.5 py-3 text-[11px] leading-5 text-black/45">
+                Todavía no hay categorías. Créalas desde la pestaña Categorías del catálogo.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2 rounded-2xl border border-black/10 p-4">

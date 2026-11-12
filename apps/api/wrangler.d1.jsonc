@@ -1,0 +1,12 @@
+{
+  "name": "ecomaster-api",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ecomaster-db",
+      "database_id": "0352d618-75f0-4803-9531-e27ce0fb0f59"
+    }
+  ]
+}

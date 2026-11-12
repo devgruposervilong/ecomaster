@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Boxes,
+  FolderTree,
   History,
   Info,
   ListPlus,
@@ -15,13 +16,13 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Channel, Product } from '@ecomaster/shared'
+import type { Category, Channel, Product } from '@ecomaster/shared'
 import {
   PRODUCT_TYPE_LABELS,
   PRODUCT_TYPES,
 } from '@ecomaster/shared'
+import { CategoryFormDialog } from '@/components/catalog/category-form-dialog'
 import { ChannelFormDialog } from '@/components/catalog/channel-form-dialog'
-import { ChannelPricesDialog } from '@/components/catalog/channel-prices-dialog'
 import { ProductChannelPrices } from '@/components/catalog/channel-price-editor'
 import { ProductComponentsDialog } from '@/components/catalog/product-components-dialog'
 import { ProductFormDialog } from '@/components/catalog/product-form-dialog'
@@ -42,7 +43,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiFetch, errorMessage } from '@/lib/api'
 import { formatAmount } from '@/lib/format'
-import { channelsQuery, meQuery, productsQuery } from '@/lib/queries'
+import { channelsQuery, categoriesQuery, categoryOptionsQuery, meQuery, productsQuery } from '@/lib/queries'
 
 export const Route = createFileRoute('/_app/catalogo')({
   component: CatalogPage,
@@ -61,15 +62,18 @@ function CatalogPage() {
   const deferredSearch = useDeferredValue(search)
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [type, setType] = useState<'all' | 'article' | 'service' | 'promotion'>('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const [page, setPage] = useState(1)
 
-  const [tab, setTab] = useState<'products' | 'channels'>('products')
+  const [tab, setTab] = useState<'products' | 'channels' | 'categories'>('products')
   const [formOpen, setFormOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [channelFormOpen, setChannelFormOpen] = useState(false)
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null)
   const [deleteChannel, setDeleteChannel] = useState<Channel | null>(null)
-  const [pricesDialogOpen, setPricesDialogOpen] = useState(false)
+  const [categoryFormOpen, setCategoryFormOpen] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [deleteCategory, setDeleteCategory] = useState<Category | null>(null)
   const [historyTarget, setHistoryTarget] = useState<{
     product: Product
     channelId: string
@@ -78,6 +82,8 @@ function CatalogPage() {
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null)
 
   const channels = useQuery(channelsQuery({ pageSize: 100 }))
+  const categories = useQuery(categoriesQuery({ pageSize: 100 }))
+  const categoryOptions = useQuery(categoryOptionsQuery)
 
   const allChannels = useMemo(() => channels.data?.data ?? [], [channels.data])
   const activeChannels = useMemo(
@@ -98,6 +104,7 @@ function CatalogPage() {
       search: deferredSearch.trim() || undefined,
       status: isAdmin && status !== 'all' ? status : undefined,
       type: type === 'all' ? undefined : type,
+      categoryId: categoryFilter === 'all' ? undefined : categoryFilter,
       page,
       pageSize: PAGE_SIZE,
     }),
@@ -108,9 +115,23 @@ function CatalogPage() {
       apiFetch(`/api/catalog/products/${product.id}`, { method: 'DELETE' }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['products'] })
+      await queryClient.invalidateQueries({ queryKey: ['categories'] })
       await queryClient.invalidateQueries({ queryKey: ['channel-prices'] })
       toast.success('Producto eliminado')
       setDeleteProduct(null)
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  })
+
+  const removeCategory = useMutation({
+    mutationFn: (category: Category) =>
+      apiFetch(`/api/catalog/categories/${category.id}`, { method: 'DELETE' }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['categories'] })
+      await queryClient.invalidateQueries({ queryKey: ['category-options'] })
+      await queryClient.invalidateQueries({ queryKey: ['products'] })
+      toast.success('Categoría eliminada')
+      setDeleteCategory(null)
     },
     onError: (error) => toast.error(errorMessage(error)),
   })
@@ -155,6 +176,16 @@ function CatalogPage() {
     setChannelFormOpen(true)
   }
 
+  function openCreateCategory() {
+    setEditingCategory(null)
+    setCategoryFormOpen(true)
+  }
+
+  function openEditCategory(category: Category) {
+    setEditingCategory(category)
+    setCategoryFormOpen(true)
+  }
+
   function openHistory(product: Product, channelId?: string) {
     const targetChannel = channelId ?? activeChannels[0]?.id ?? allChannels[0]?.id
     if (!targetChannel) {
@@ -168,40 +199,38 @@ function CatalogPage() {
     <div className="space-y-5">
       <PageHeader
         eyebrow="Catálogo"
-        title={tab === 'products' ? 'Productos y precios' : 'Canales de precios'}
+        title={
+          tab === 'products'
+            ? 'Productos y precios'
+            : tab === 'channels'
+              ? 'Canales de precios'
+              : 'Categorías'
+        }
         description={
           tab === 'products'
             ? isGlobal
               ? 'El producto es global. El precio se define por canal; cada aliado vende con el precio activo de su canal.'
               : 'Estos son los productos activos en tu canal de precios. Los precios los administra Ecomaster.'
-            : isAdmin
-              ? 'Crea y administra los canales que agrupan precios por moneda. Los aliados se asignan a un canal.'
-              : 'Consulta los canales de precios de tu operación.'
+            : tab === 'channels'
+              ? isAdmin
+                ? 'Crea y administra los canales que agrupan precios por moneda. Los aliados se asignan a un canal.'
+                : 'Consulta los canales de precios de tu operación.'
+              : isAdmin
+                ? 'Crea y administra las categorías globales del catálogo. Un producto puede pertenecer a varias categorías.'
+                : 'Consulta las categorías que organizan el catálogo global.'
         }
         actions={
           isAdmin ? (
             tab === 'products' ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setPricesDialogOpen(true)}
-                  disabled={activeChannels.length === 0}
-                  className="rounded-xl border-black/15"
-                >
-                  <Tags className="size-4" />
-                  Cambiar precios…
-                </Button>
-                <Button
-                  type="button"
-                  onClick={openCreate}
-                  className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
-                >
-                  <Plus className="size-4" />
-                  Nuevo producto
-                </Button>
-              </>
-            ) : (
+              <Button
+                type="button"
+                onClick={openCreate}
+                className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
+              >
+                <Plus className="size-4" />
+                Nuevo producto
+              </Button>
+            ) : tab === 'channels' ? (
               <Button
                 type="button"
                 onClick={openCreateChannel}
@@ -209,6 +238,15 @@ function CatalogPage() {
               >
                 <ListPlus className="size-4" />
                 Nuevo canal
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={openCreateCategory}
+                className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
+              >
+                <FolderTree className="size-4" />
+                Nueva categoría
               </Button>
             )
           ) : undefined
@@ -244,7 +282,7 @@ function CatalogPage() {
 
       <Tabs
         value={tab}
-        onValueChange={(value) => setTab(value as 'products' | 'channels')}
+        onValueChange={(value) => setTab(value as 'products' | 'channels' | 'categories')}
         className="space-y-4"
       >
         <TabsList className="h-10 rounded-xl border border-black/10 bg-white p-1">
@@ -261,6 +299,14 @@ function CatalogPage() {
             {channels.data?.meta ? (
               <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">
                 {channels.data.meta.total}
+              </span>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="categories" className="rounded-lg px-3 text-xs">
+            Categorías
+            {categories.data?.meta ? (
+              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">
+                {categories.data.meta.total}
               </span>
             ) : null}
           </TabsTrigger>
@@ -319,6 +365,28 @@ function CatalogPage() {
             ))}
           </SelectContent>
         </Select>
+
+        {categoryOptions.data && categoryOptions.data.length > 0 ? (
+          <Select
+            value={categoryFilter}
+            onValueChange={(value) => {
+              setCategoryFilter(value)
+              setPage(1)
+            }}
+          >
+            <SelectTrigger className="h-10 w-full rounded-xl border-black/15 sm:w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {categoryOptions.data.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
       </div>
 
       {isAdmin && activeChannels.length === 0 ? (
@@ -384,7 +452,7 @@ function CatalogPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
+            <table className="w-full min-w-[1120px] text-left">
               <thead className="bg-black/[0.02]">
                 <tr>
                   <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
@@ -392,6 +460,9 @@ function CatalogPage() {
                   </th>
                   <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Tipo
+                  </th>
+                  <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                    Categorías
                   </th>
                   <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     IVA
@@ -432,6 +503,22 @@ function CatalogPage() {
                     </td>
                     <td className="px-4 py-3 align-top text-[12px] text-black/60">
                       {PRODUCT_TYPE_LABELS[product.type]}
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      {product.categories.length === 0 ? (
+                        <span className="text-[11px] text-black/30">Sin categoría</span>
+                      ) : (
+                        <div className="flex max-w-[220px] flex-wrap gap-1">
+                          {product.categories.map((category) => (
+                            <span
+                              key={category.id}
+                              className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] font-medium text-black/55"
+                            >
+                              {category.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 align-top">
                       <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[11px] font-medium text-black/60">
@@ -698,6 +785,133 @@ function CatalogPage() {
             lugar. Al eliminar un canal sin uso también se eliminan sus precios e historial.
           </p>
         </TabsContent>
+
+        <TabsContent value="categories" className="space-y-4">
+          <div className="overflow-hidden rounded-2xl border border-black/10 bg-white">
+            {categories.isLoading ? (
+              <div className="space-y-2 p-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="h-14 animate-pulse rounded-xl bg-black/[0.04]" />
+                ))}
+              </div>
+            ) : categories.isError ? (
+              <div className="px-5 py-10 text-center text-sm text-black/55">
+                No pudimos cargar las categorías. Intenta de nuevo.
+              </div>
+            ) : (categories.data?.data.length ?? 0) === 0 ? (
+              <EmptyState
+                icon={FolderTree}
+                title="Todavía no hay categorías"
+                description={
+                  isAdmin
+                    ? 'Crea la primera categoría para organizar los productos del catálogo global.'
+                    : 'No hay categorías configuradas.'
+                }
+                action={
+                  isAdmin ? (
+                    <Button
+                      type="button"
+                      onClick={openCreateCategory}
+                      className="rounded-xl bg-[#BCD86C] text-[#0A0A0A] hover:bg-[#BCD86C]/85"
+                    >
+                      <FolderTree className="size-4" />
+                      Nueva categoría
+                    </Button>
+                  ) : undefined
+                }
+                className="border-0"
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left">
+                  <thead className="bg-black/[0.02]">
+                    <tr>
+                      <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Categoría
+                      </th>
+                      <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Descripción
+                      </th>
+                      <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Productos
+                      </th>
+                      <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Estado
+                      </th>
+                      <th className="px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(categories.data?.data ?? []).map((category) => (
+                      <tr
+                        key={category.id}
+                        className="border-t border-black/[0.06] hover:bg-black/[0.015]"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]">
+                              <FolderTree className="size-4 text-black/45" />
+                            </div>
+                            <p className="truncate text-[13px] font-medium text-[#0A0A0A]">
+                              {category.name}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="max-w-[320px] px-4 py-3 text-[12px] text-black/55">
+                          <p className="truncate">{category.description || 'Sin descripción'}</p>
+                        </td>
+                        <td className="px-4 py-3 text-[13px] tabular-nums text-black/60">
+                          {category.productCount}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={category.status} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {isAdmin ? (
+                              <>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="rounded-lg text-black/45 hover:text-[#0A0A0A]"
+                                  onClick={() => openEditCategory(category)}
+                                  title="Editar categoría"
+                                >
+                                  <Pencil className="size-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="rounded-lg text-black/45 hover:text-red-600"
+                                  onClick={() => setDeleteCategory(category)}
+                                  title="Eliminar categoría"
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Lock className="size-3.5 text-black/20" />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <p className="flex items-start gap-2 text-[11px] leading-5 text-black/40">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            Las categorías con productos asociados no se pueden eliminar; desactívalas en su lugar.
+            Un producto puede pertenecer a varias categorías a la vez.
+          </p>
+        </TabsContent>
       </Tabs>
 
       <ProductFormDialog
@@ -713,10 +927,13 @@ function CatalogPage() {
         }}
         channel={editingChannel ?? undefined}
       />
-      <ChannelPricesDialog
-        open={pricesDialogOpen}
-        onOpenChange={setPricesDialogOpen}
-        channels={activeChannels}
+      <CategoryFormDialog
+        open={categoryFormOpen}
+        onOpenChange={(next) => {
+          setCategoryFormOpen(next)
+          if (!next) setEditingCategory(null)
+        }}
+        category={editingCategory}
       />
       <ProductHistoryDialog
         open={Boolean(historyTarget)}
@@ -768,6 +985,24 @@ function CatalogPage() {
         isPending={removeChannel.isPending}
         onConfirm={() => {
           if (deleteChannel) removeChannel.mutate(deleteChannel)
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(deleteCategory)}
+        onOpenChange={(next) => {
+          if (!next) setDeleteCategory(null)
+        }}
+        title="Eliminar categoría"
+        description={
+          deleteCategory
+            ? `Se eliminará la categoría ${deleteCategory.name}. Si tiene productos asociados, no se podrá eliminar; en ese caso desactívala.`
+            : ''
+        }
+        confirmLabel="Eliminar"
+        destructive
+        isPending={removeCategory.isPending}
+        onConfirm={() => {
+          if (deleteCategory) removeCategory.mutate(deleteCategory)
         }}
       />
     </div>

@@ -21,8 +21,7 @@ function parsePrice(value: string) {
 }
 
 /**
- * Editor inline de precios por canal. Se usa en la tabla de productos y en el
- * diálogo «Cambiar precios…».
+ * Editor inline de precios por canal. Se usa en la tabla de productos.
  */
 export function ProductChannelPrices({
   product,

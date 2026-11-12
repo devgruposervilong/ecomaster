@@ -12,31 +12,39 @@ import {
 } from 'drizzle-orm'
 import { Hono, type Context } from 'hono'
 import {
+  createCategorySchema,
   createChannelSchema,
   createProductSchema,
   isGlobalRole,
+  listCategoriesQuerySchema,
   listChannelsQuerySchema,
   listProductsQuerySchema,
   setChannelPriceSchema,
   setProductComponentsSchema,
   syncChannelPricesSchema,
+  updateCategorySchema,
   updateChannelSchema,
   updateProductSchema,
   type CatalogProduct,
+  type Category,
+  type CategoryStatus,
   type Channel,
   type ChannelPrice,
   type ChannelPriceStatus,
   type PriceHistoryEntry,
   type Product,
+  type ProductCategory,
   type ProductChannelPrice,
   type ProductComponent,
   type ProductType,
 } from '@ecomaster/shared'
 import {
+  categories,
   channels,
   channelPrices,
   partners,
   priceHistory,
+  productCategories,
   productComponents,
   products,
   saleItems,
@@ -96,9 +104,77 @@ function requireAdminSession(c: Context<AppEnv>): Session {
   return session
 }
 
-function serializeProduct(row: ProductRow): Product {
+function serializeProduct(row: ProductRow, categories: ProductCategory[] = []): Product {
   return {
     ...row,
+    categories,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+async function buildProductCategories(db: Db, productIds: string[]) {
+  const byProduct = new Map<string, ProductCategory[]>()
+
+  if (productIds.length === 0) return byProduct
+
+  const rows = await db
+    .select({
+      productId: productCategories.productId,
+      id: categories.id,
+      name: categories.name,
+      status: categories.status,
+    })
+    .from(productCategories)
+    .innerJoin(categories, eq(categories.id, productCategories.categoryId))
+    .where(inArray(productCategories.productId, productIds))
+    .orderBy(asc(productCategories.position), asc(categories.name))
+
+  for (const row of rows) {
+    const list = byProduct.get(row.productId) ?? []
+    list.push({ id: row.id, name: row.name, status: row.status })
+    byProduct.set(row.productId, list)
+  }
+
+  return byProduct
+}
+
+async function resolveCategoryIds(db: Db, input: string[]) {
+  const ids = input.map((id) => id.trim()).filter(Boolean)
+  const unique = [...new Set(ids)]
+
+  if (unique.length !== ids.length) {
+    throw badRequest('Hay categorías repetidas en la selección.')
+  }
+
+  if (unique.length === 0) return []
+
+  const rows = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(inArray(categories.id, unique))
+
+  if (rows.length !== unique.length) {
+    throw badRequest('Una de las categorías seleccionadas no existe.')
+  }
+
+  return unique
+}
+
+type CategoryRow = {
+  id: string
+  name: string
+  description: string | null
+  status: CategoryStatus
+  productCount: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+function serializeCategory(row: CategoryRow): Category {
+  return {
+    ...row,
+    productCount: Number(row.productCount ?? 0),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -154,7 +230,42 @@ async function assertChannelAccess(c: Context<AppEnv>, channelId: string) {
 
 async function findProduct(db: Db, id: string) {
   const [row] = await db.select(productSelection).from(products).where(eq(products.id, id)).limit(1)
-  return row ? serializeProduct(row) : null
+  if (!row) return null
+
+  const byProduct = await buildProductCategories(db, [id])
+  return serializeProduct(row, byProduct.get(id) ?? [])
+}
+
+async function findCategory(db: Db, id: string) {
+  const [row] = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      description: categories.description,
+      status: categories.status,
+      productCount: count(productCategories.id),
+      createdAt: categories.createdAt,
+      updatedAt: categories.updatedAt,
+    })
+    .from(categories)
+    .leftJoin(productCategories, eq(productCategories.categoryId, categories.id))
+    .where(eq(categories.id, id))
+    .groupBy(categories.id)
+    .limit(1)
+
+  return row ? serializeCategory(row) : null
+}
+
+async function assertUniqueCategory(db: Db, name: string, excludeId?: string) {
+  const [row] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(sql`lower(${categories.name}) = ${name.toLowerCase()}`)
+    .limit(1)
+
+  if (row && row.id !== excludeId) {
+    throw conflict(`Ya existe una categoría con el nombre ${name}.`)
+  }
 }
 
 async function assertPartnerProductAccess(c: Context<AppEnv>, product: Product) {
@@ -402,7 +513,7 @@ async function buildProductPrices(
 }
 
 catalogRoutes.get('/products', queryParams(listProductsQuerySchema), async (c) => {
-  const { search, status, type, channelId, page, pageSize } = c.req.valid('query')
+  const { search, status, type, categoryId, channelId, page, pageSize } = c.req.valid('query')
   const db = c.get('db')
   const session = c.get('session')
   const isPartner = !isGlobalRole(session?.user.role)
@@ -421,6 +532,15 @@ catalogRoutes.get('/products', queryParams(listProductsQuerySchema), async (c) =
   }
   if (status) conditions.push(eq(products.status, status))
   if (type) conditions.push(eq(products.type, type))
+  if (categoryId) {
+    conditions.push(
+      sql`exists (
+        select 1 from ${productCategories}
+        where ${productCategories.productId} = ${products.id}
+          and ${productCategories.categoryId} = ${categoryId}
+      )`,
+    )
+  }
   if (isPartner) conditions.push(eq(products.status, 'active'))
   if (isPartner && !resolvedChannelId) {
     return c.json({
@@ -452,15 +572,13 @@ catalogRoutes.get('/products', queryParams(listProductsQuerySchema), async (c) =
     .offset((page - 1) * pageSize)
 
   const channelRows = await listMatrixChannels(db, isPartner, resolvedChannelId)
-  const pricesByProduct = await buildProductPrices(
-    db,
-    rows.map((row) => row.id),
-    channelRows,
-  )
+  const productIds = rows.map((row) => row.id)
+  const pricesByProduct = await buildProductPrices(db, productIds, channelRows)
+  const categoriesByProduct = await buildProductCategories(db, productIds)
 
   return c.json({
     data: rows.map((row): CatalogProduct => {
-      const product = serializeProduct(row)
+      const product = serializeProduct(row, categoriesByProduct.get(row.id) ?? [])
       const prices = pricesByProduct.get(row.id) ?? []
       const resolved = resolvedChannelId
         ? prices.find((price) => price.channelId === resolvedChannelId)
@@ -578,20 +696,38 @@ catalogRoutes.post('/products', jsonBody(createProductSchema), async (c) => {
   const db = c.get('db')
   const sku = body.sku.trim()
   const barcode = nullable(body.barcode)
+  const categoryIds = await resolveCategoryIds(db, body.categoryIds)
 
   await assertUniqueProduct(db, { sku, barcode })
 
   const id = newId()
-  await db.insert(products).values({
-    id,
-    sku,
-    barcode,
-    name: body.name,
-    type: body.type,
-    ivaEnabled: body.ivaEnabled,
-    status: body.status,
-    trackInventory: body.trackInventory,
-  })
+  const statements: unknown[] = [
+    db.insert(products).values({
+      id,
+      sku,
+      barcode,
+      name: body.name,
+      type: body.type,
+      ivaEnabled: body.ivaEnabled,
+      status: body.status,
+      trackInventory: body.trackInventory,
+    }),
+  ]
+
+  if (categoryIds.length > 0) {
+    statements.push(
+      db.insert(productCategories).values(
+        categoryIds.map((categoryId, index) => ({
+          id: newId(),
+          productId: id,
+          categoryId,
+          position: index,
+        })),
+      ),
+    )
+  }
+
+  await db.batch(statements as never)
 
   await writeAudit(c, {
     action: 'catalog.product.create',
@@ -599,7 +735,7 @@ catalogRoutes.post('/products', jsonBody(createProductSchema), async (c) => {
     entityId: id,
     partnerId: null,
     description: `Creó el producto ${body.name} (${sku}).`,
-    metadata: { sku, type: body.type, ivaEnabled: body.ivaEnabled },
+    metadata: { sku, type: body.type, ivaEnabled: body.ivaEnabled, categoryIds },
   })
 
   return c.json({ data: await findProduct(db, id) }, 201)
@@ -616,6 +752,8 @@ catalogRoutes.patch('/products/:id', jsonBody(updateProductSchema), async (c) =>
 
   const nextSku = body.sku ?? existing.sku
   const nextBarcode = body.barcode !== undefined ? nullable(body.barcode) : existing.barcode
+  const categoryIds =
+    body.categoryIds !== undefined ? await resolveCategoryIds(db, body.categoryIds) : undefined
 
   if (body.sku !== undefined || body.barcode !== undefined) {
     await assertUniqueProduct(db, { sku: nextSku, barcode: nextBarcode, excludeId: id })
@@ -630,7 +768,30 @@ catalogRoutes.patch('/products/:id', jsonBody(updateProductSchema), async (c) =>
   if (body.status !== undefined) patch.status = body.status
   if (body.trackInventory !== undefined) patch.trackInventory = body.trackInventory
 
-  await db.update(products).set(patch).where(eq(products.id, id))
+  const statements: unknown[] = [
+    db.update(products).set(patch).where(eq(products.id, id)),
+  ]
+
+  if (categoryIds !== undefined) {
+    statements.push(
+      db.delete(productCategories).where(eq(productCategories.productId, id)),
+    )
+
+    if (categoryIds.length > 0) {
+      statements.push(
+        db.insert(productCategories).values(
+          categoryIds.map((categoryId, index) => ({
+            id: newId(),
+            productId: id,
+            categoryId,
+            position: index,
+          })),
+        ),
+      )
+    }
+  }
+
+  await db.batch(statements as never)
 
   await writeAudit(c, {
     action: 'catalog.product.update',
@@ -768,6 +929,153 @@ catalogRoutes.put(
     return c.json({ data: { ok: true } })
   },
 )
+
+catalogRoutes.get('/categories/options', async (c) => {
+  const db = c.get('db')
+  const rows = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      status: categories.status,
+    })
+    .from(categories)
+    .orderBy(asc(categories.name))
+
+  return c.json({ data: rows })
+})
+
+catalogRoutes.get('/categories', queryParams(listCategoriesQuerySchema), async (c) => {
+  const { search, status, page, pageSize } = c.req.valid('query')
+  const db = c.get('db')
+  const conditions: SQL[] = []
+
+  if (search) conditions.push(like(categories.name, `%${search}%`))
+  if (status) conditions.push(eq(categories.status, status))
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined
+  const [totalRow] = await db.select({ total: count() }).from(categories).where(where)
+  const total = Number(totalRow?.total ?? 0)
+
+  const rows = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      description: categories.description,
+      status: categories.status,
+      productCount: count(productCategories.id),
+      createdAt: categories.createdAt,
+      updatedAt: categories.updatedAt,
+    })
+    .from(categories)
+    .leftJoin(productCategories, eq(productCategories.categoryId, categories.id))
+    .where(where)
+    .groupBy(categories.id)
+    .orderBy(asc(categories.name))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  return c.json({
+    data: rows.map(serializeCategory),
+    meta: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    },
+  })
+})
+
+catalogRoutes.post('/categories', jsonBody(createCategorySchema), async (c) => {
+  requireAdminSession(c)
+  const body = c.req.valid('json')
+  const db = c.get('db')
+  const name = body.name.trim()
+
+  await assertUniqueCategory(db, name)
+
+  const id = newId()
+  await db.insert(categories).values({
+    id,
+    name,
+    description: nullable(body.description),
+    status: body.status,
+  })
+
+  await writeAudit(c, {
+    action: 'catalog.category.create',
+    entityType: 'category',
+    entityId: id,
+    partnerId: null,
+    description: `Creó la categoría ${name}.`,
+    metadata: { status: body.status },
+  })
+
+  return c.json({ data: await findCategory(db, id) }, 201)
+})
+
+catalogRoutes.patch('/categories/:id', jsonBody(updateCategorySchema), async (c) => {
+  requireAdminSession(c)
+  const id = c.req.param('id')
+  const body = c.req.valid('json')
+  const db = c.get('db')
+  const existing = await findCategory(db, id)
+
+  if (!existing) throw notFound('No encontramos esta categoría.')
+
+  if (body.name !== undefined) {
+    await assertUniqueCategory(db, body.name.trim(), id)
+  }
+
+  const patch: Partial<typeof categories.$inferInsert> = { updatedAt: new Date() }
+  if (body.name !== undefined) patch.name = body.name.trim()
+  if (body.description !== undefined) patch.description = nullable(body.description)
+  if (body.status !== undefined) patch.status = body.status
+
+  await db.update(categories).set(patch).where(eq(categories.id, id))
+
+  await writeAudit(c, {
+    action: 'catalog.category.update',
+    entityType: 'category',
+    entityId: id,
+    partnerId: null,
+    description: `Actualizó la categoría ${body.name ?? existing.name}.`,
+    metadata: body,
+  })
+
+  return c.json({ data: await findCategory(db, id) })
+})
+
+catalogRoutes.delete('/categories/:id', async (c) => {
+  requireAdminSession(c)
+  const id = c.req.param('id')
+  const db = c.get('db')
+  const existing = await findCategory(db, id)
+
+  if (!existing) throw notFound('No encontramos esta categoría.')
+
+  const [used] = await db
+    .select({ total: count() })
+    .from(productCategories)
+    .where(eq(productCategories.categoryId, id))
+
+  if (Number(used?.total ?? 0) > 0) {
+    throw conflict(
+      'La categoría tiene productos asociados. Desactívala en lugar de eliminarla.',
+    )
+  }
+
+  await db.delete(categories).where(eq(categories.id, id))
+
+  await writeAudit(c, {
+    action: 'catalog.category.delete',
+    entityType: 'category',
+    entityId: id,
+    partnerId: null,
+    description: `Eliminó la categoría ${existing.name}.`,
+  })
+
+  return c.json({ data: { ok: true } })
+})
 
 catalogRoutes.get('/channels/options', async (c) => {
   const db = c.get('db')
