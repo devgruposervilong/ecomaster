@@ -111,7 +111,9 @@ export function ProductFormDialog({
         setSavedProduct(response.data)
         setStep(2)
         toast.success(
-          persistedProduct ? 'Datos de la promoción actualizados' : 'Promoción creada',
+          persistedProduct
+            ? 'Datos de la promoción actualizados'
+            : 'Datos de la promoción guardados',
         )
         return
       }
