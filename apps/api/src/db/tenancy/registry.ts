@@ -9,6 +9,7 @@ import { invites } from '../schema/invites'
 import { partners } from '../schema/partners'
 import { categories, productCategories } from '../schema/categories'
 import { channels, channelPrices, priceHistory } from '../schema/channels'
+import { productChannels } from '../schema/product-channels'
 import { productComponents } from '../schema/product-components'
 import { products } from '../schema/products'
 import { saleItems, salePayments, sales } from '../schema/sales'
@@ -103,6 +104,11 @@ const TABLE_POLICIES: Record<string, TablePolicy> = {
     requireWhereOnWrite: true,
   },
   [getTableName(channelPrices)]: {
+    kind: 'global',
+    access: { partner: ['select'], admin: ALL, system: ['select'] },
+    requireWhereOnWrite: true,
+  },
+  [getTableName(productChannels)]: {
     kind: 'global',
     access: { partner: ['select'], admin: ALL, system: ['select'] },
     requireWhereOnWrite: true,

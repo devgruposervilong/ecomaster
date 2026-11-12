@@ -5,9 +5,9 @@ import { toast } from 'sonner'
 import type { CatalogProduct, ProductChannelPrice } from '@ecomaster/shared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { apiFetch, errorMessage, jsonBody } from '@/lib/api'
 import { currencySymbol, formatAmount } from '@/lib/format'
-import { cn } from '@/lib/utils'
 
 function toInputValue(price: number | null) {
   return price === null ? '' : price.toFixed(2).replace('.', ',')
@@ -21,7 +21,8 @@ function parsePrice(value: string) {
 }
 
 /**
- * Editor inline de precios por canal. Se usa en la tabla de productos.
+ * Editor inline de disponibilidad y precios por canal. Se usa en la tabla de
+ * productos: el switch activa o desactiva el producto en el canal.
  */
 export function ProductChannelPrices({
   product,
@@ -78,7 +79,7 @@ function ChannelPriceRow({
     await queryClient.invalidateQueries({ queryKey: ['product-history'] })
   }
 
-  async function commit(nextStatus?: 'active' | 'inactive') {
+  async function commit() {
     if (busy.current) return
 
     const parsed = parsePrice(value)
@@ -88,11 +89,8 @@ function ChannelPriceRow({
       return
     }
 
-    const status = nextStatus ?? entry.status ?? 'active'
     const priceChanged = entry.itemId === null || parsed !== entry.price
-    const statusChanged = entry.status !== status
-
-    if (!priceChanged && !statusChanged) return
+    if (!priceChanged) return
 
     busy.current = true
     setSaving(true)
@@ -107,14 +105,14 @@ function ChannelPriceRow({
       } else if (entry.itemId) {
         await apiFetch(`/api/catalog/channels/${entry.channelId}/prices/${entry.itemId}`, {
           method: 'PATCH',
-          body: jsonBody({ price: parsed, ...(statusChanged ? { status } : {}) }),
+          body: jsonBody({ price: parsed }),
         })
       } else {
         await apiFetch(
           `/api/catalog/channels/${entry.channelId}/prices/by-product/${product.id}`,
           {
             method: 'PUT',
-            body: jsonBody({ price: parsed, status }),
+            body: jsonBody({ price: parsed, status: 'active' }),
           },
         )
       }
@@ -129,25 +127,65 @@ function ChannelPriceRow({
     }
   }
 
-  function toggle() {
-    void commit(entry.status === 'active' ? 'inactive' : 'active')
+  async function toggleAvailability() {
+    if (readOnly || busy.current) return
+
+    const nextStatus = entry.available === 'active' ? 'inactive' : 'active'
+    busy.current = true
+    setSaving(true)
+
+    try {
+      await apiFetch(`/api/catalog/products/${product.id}/channels/${entry.channelId}`, {
+        method: 'PUT',
+        body: jsonBody({ status: nextStatus }),
+      })
+      await invalidate()
+      toast.success(
+        nextStatus === 'active'
+          ? `Producto activado en ${entry.channelName}`
+          : `Producto desactivado en ${entry.channelName}`,
+      )
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      busy.current = false
+      setSaving(false)
+    }
   }
+
+  const available = entry.available === 'active'
+  const statusLabel = !available
+    ? 'No disponible'
+    : entry.itemId
+      ? entry.status === 'active'
+        ? 'Activo'
+        : 'Inactivo'
+      : 'Sin precio'
 
   return (
     <div className="flex items-center gap-1.5 py-1.5 first:pt-0 last:pb-0">
+      <Switch
+        checked={available}
+        onCheckedChange={() => void toggleAvailability()}
+        disabled={readOnly || saving}
+        title={`${available ? 'Desactivar' : 'Activar'} producto en ${entry.channelName}`}
+        aria-label={`Producto activo en ${entry.channelName}`}
+        className="shrink-0"
+      />
+
       <span
-        className="w-[76px] shrink-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45"
+        className="w-[72px] shrink-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-black/45"
         title={entry.channelName}
       >
         {entry.channelName}
       </span>
 
       {readOnly ? (
-        <span className="w-[110px] shrink-0 whitespace-nowrap text-right text-[12px] tabular-nums text-[#0A0A0A]">
+        <span className="w-[90px] shrink-0 whitespace-nowrap text-right text-[12px] tabular-nums text-[#0A0A0A]">
           {entry.price === null ? '—' : formatAmount(entry.price, entry.channelCurrency)}
         </span>
       ) : (
-        <div className="relative w-[80px] shrink-0">
+        <div className="relative w-[78px] shrink-0">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-black/35">
             {currencySymbol(entry.channelCurrency)}
           </span>
@@ -170,36 +208,21 @@ function ChannelPriceRow({
         </div>
       )}
 
-      {entry.itemId ? (
-        <button
-          type="button"
-          role="switch"
-          aria-checked={entry.status === 'active'}
-          aria-label={`Activar precio en ${entry.channelName}`}
-          onMouseDown={readOnly ? undefined : (event) => event.preventDefault()}
-          onClick={readOnly ? undefined : toggle}
-          disabled={readOnly || saving}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
-            entry.status === 'active' ? 'bg-[#0A0A0A]' : 'bg-black/15',
-            saving && 'opacity-50',
-            readOnly && 'cursor-default',
-          )}
-        >
-          <span
-            className={cn(
-              'inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform',
-              entry.status === 'active' ? 'translate-x-[18px]' : 'translate-x-[3px]',
-            )}
-          />
-        </button>
-      ) : null}
-
       <span
-        className="min-w-0 flex-1 truncate text-[10px] leading-4 text-black/40"
-        title={entry.itemId ? undefined : 'Sin precio: se cobra a mano en la venta'}
+        className={
+          available
+            ? 'min-w-0 flex-1 truncate text-[10px] leading-4 text-black/40'
+            : 'min-w-0 flex-1 truncate text-[10px] leading-4 text-black/30'
+        }
+        title={
+          !available
+            ? 'El producto no está disponible para este canal.'
+            : entry.itemId
+              ? undefined
+              : 'Sin precio: se cobra a mano en la venta'
+        }
       >
-        {entry.itemId ? (entry.status === 'active' ? 'Activo' : 'Inactivo') : 'Sin precio'}
+        {statusLabel}
       </span>
 
       {entry.itemId && onHistory ? (

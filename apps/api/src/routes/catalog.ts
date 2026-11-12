@@ -20,6 +20,7 @@ import {
   listChannelsQuerySchema,
   listProductsQuerySchema,
   setChannelPriceSchema,
+  setProductChannelStatusSchema,
   setProductComponentsSchema,
   syncChannelPricesSchema,
   updateCategorySchema,
@@ -45,6 +46,7 @@ import {
   partners,
   priceHistory,
   productCategories,
+  productChannels,
   productComponents,
   products,
   saleItems,
@@ -280,6 +282,22 @@ async function assertPartnerProductAccess(c: Context<AppEnv>, product: Product) 
     throw notFound('No encontramos este producto en tu canal de precios.')
   }
 
+  const [availability] = await c
+    .get('db')
+    .select({ status: productChannels.status })
+    .from(productChannels)
+    .where(
+      and(
+        eq(productChannels.channelId, channelId),
+        eq(productChannels.productId, product.id),
+      ),
+    )
+    .limit(1)
+
+  if (availability?.status === 'inactive') {
+    throw notFound('No encontramos este producto en tu canal de precios.')
+  }
+
   const [item] = await c
     .get('db')
     .select({ status: channelPrices.status })
@@ -470,6 +488,7 @@ async function buildProductPrices(
     return byProduct
   }
 
+  const channelIds = channelRows.map((channel) => channel.id)
   const rows = await db
     .select({
       id: channelPrices.id,
@@ -483,18 +502,33 @@ async function buildProductPrices(
     .where(
       and(
         inArray(channelPrices.productId, productIds),
-        inArray(
-          channelPrices.channelId,
-          channelRows.map((channel) => channel.id),
-        ),
+        inArray(channelPrices.channelId, channelIds),
+      ),
+    )
+
+  const availabilityRows = await db
+    .select({
+      productId: productChannels.productId,
+      channelId: productChannels.channelId,
+      status: productChannels.status,
+    })
+    .from(productChannels)
+    .where(
+      and(
+        inArray(productChannels.productId, productIds),
+        inArray(productChannels.channelId, channelIds),
       ),
     )
 
   const byKey = new Map(rows.map((row) => [`${row.productId}:${row.channelId}`, row]))
+  const availabilityByKey = new Map(
+    availabilityRows.map((row) => [`${row.productId}:${row.channelId}`, row.status]),
+  )
 
   for (const productId of productIds) {
     const prices = channelRows.map((channel): ProductChannelPrice => {
-      const item = byKey.get(`${productId}:${channel.id}`)
+      const key = `${productId}:${channel.id}`
+      const item = byKey.get(key)
 
       return {
         channelId: channel.id,
@@ -503,6 +537,7 @@ async function buildProductPrices(
         itemId: item?.id ?? null,
         price: item ? Number(item.price) : null,
         status: item?.status ?? null,
+        available: availabilityByKey.get(key) ?? 'active',
       }
     })
 
@@ -548,6 +583,16 @@ catalogRoutes.get('/products', queryParams(listProductsQuerySchema), async (c) =
       meta: { page, pageSize, total: 0, totalPages: 1 },
     })
   }
+  if (resolvedChannelId) {
+    conditions.push(
+      sql`not exists (
+        select 1 from ${productChannels}
+        where ${productChannels.channelId} = ${resolvedChannelId}
+          and ${productChannels.productId} = ${products.id}
+          and ${productChannels.status} = 'inactive'
+      )`,
+    )
+  }
   if (isPartner && resolvedChannelId) {
     conditions.push(
       sql`exists (
@@ -589,6 +634,7 @@ catalogRoutes.get('/products', queryParams(listProductsQuerySchema), async (c) =
         priceItemId: resolved?.itemId ?? null,
         price: resolved?.price ?? null,
         priceStatus: resolved?.status ?? null,
+        available: resolved?.available ?? null,
         position: 0,
         prices,
       }
@@ -648,6 +694,7 @@ catalogRoutes.get('/products/:id', async (c) => {
     priceItemId: resolved?.itemId ?? null,
     price: resolved?.price ?? null,
     priceStatus: resolved?.status ?? null,
+    available: resolved?.available ?? null,
     position: 0,
     prices,
     components,
@@ -804,6 +851,60 @@ catalogRoutes.patch('/products/:id', jsonBody(updateProductSchema), async (c) =>
 
   return c.json({ data: await findProduct(db, id) })
 })
+
+catalogRoutes.put(
+  '/products/:id/channels/:channelId',
+  jsonBody(setProductChannelStatusSchema),
+  async (c) => {
+    requireAdminSession(c)
+    const id = c.req.param('id')
+    const channelId = c.req.param('channelId')
+    const body = c.req.valid('json')
+    const db = c.get('db')
+    const product = await findProduct(db, id)
+
+    if (!product) throw notFound('No encontramos este producto.')
+
+    const channel = await findChannel(db, channelId)
+    if (!channel) throw notFound('No encontramos este canal de precios.')
+
+    const [existing] = await db
+      .select({ id: productChannels.id })
+      .from(productChannels)
+      .where(
+        and(
+          eq(productChannels.productId, id),
+          eq(productChannels.channelId, channelId),
+        ),
+      )
+      .limit(1)
+
+    if (existing) {
+      await db
+        .update(productChannels)
+        .set({ status: body.status, updatedAt: new Date() })
+        .where(eq(productChannels.id, existing.id))
+    } else {
+      await db.insert(productChannels).values({
+        id: newId(),
+        productId: id,
+        channelId,
+        status: body.status,
+      })
+    }
+
+    await writeAudit(c, {
+      action: 'catalog.product.channel.status',
+      entityType: 'product',
+      entityId: id,
+      partnerId: null,
+      description: `${body.status === 'active' ? 'Activó' : 'Desactivó'} ${product.name} en el canal ${channel.name}.`,
+      metadata: { channelId, status: body.status },
+    })
+
+    return c.json({ data: { ok: true, status: body.status } })
+  },
+)
 
 catalogRoutes.delete('/products/:id', async (c) => {
   requireAdminSession(c)

@@ -297,6 +297,7 @@ export function SaleFormDialog({
   const availableProducts = productRows.filter(
     (product) =>
       !quantities[product.id] &&
+      product.available !== 'inactive' &&
       (isAdmin || (product.price !== null && product.priceStatus === 'active')),
   )
 

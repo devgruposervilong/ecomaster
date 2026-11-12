@@ -30,6 +30,7 @@ import {
   partners,
   channelPrices,
   channels,
+  productChannels,
   productComponents,
   products,
   saleItems,
@@ -471,6 +472,22 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
     )
   const priceByProduct = new Map(priceRows.map((row) => [row.productId, row]))
 
+  const availabilityRows = await db
+    .select({
+      productId: productChannels.productId,
+      status: productChannels.status,
+    })
+    .from(productChannels)
+    .where(
+      and(
+        eq(productChannels.channelId, partner.channelId),
+        inArray(productChannels.productId, productIds),
+      ),
+    )
+  const availabilityByProduct = new Map(
+    availabilityRows.map((row) => [row.productId, row.status]),
+  )
+
   for (const productId of productIds) {
     const product = productById.get(productId)!
     const price = priceByProduct.get(productId)
@@ -478,6 +495,11 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
 
     if (product.status !== 'active') {
       throw badRequest(`El producto ${product.name} está inactivo.`)
+    }
+    if (availabilityByProduct.get(productId) === 'inactive') {
+      throw badRequest(
+        `El producto ${product.name} no está activo en el canal ${partner.channelName}.`,
+      )
     }
     if (hasActivePrice && manualPrices.has(productId)) {
       throw badRequest(
@@ -510,16 +532,40 @@ salesRoutes.post('/', jsonBody(createSaleSchema), async (c) => {
       .innerJoin(products, eq(products.id, productComponents.componentProductId))
       .where(inArray(productComponents.productId, promotionIds))
 
+    const componentIds = [...new Set(components.map((component) => component.componentProductId))]
+    const componentAvailabilityRows =
+      componentIds.length > 0
+        ? await db
+            .select({
+              productId: productChannels.productId,
+              status: productChannels.status,
+            })
+            .from(productChannels)
+            .where(
+              and(
+                eq(productChannels.channelId, partner.channelId),
+                inArray(productChannels.productId, componentIds),
+              ),
+            )
+        : []
+    const componentAvailability = new Map(
+      componentAvailabilityRows.map((row) => [row.productId, row.status]),
+    )
+
     for (const promotionId of promotionIds) {
       const own = components.filter((component) => component.productId === promotionId)
       if (own.length === 0) {
         const promotion = productById.get(promotionId)!
         throw badRequest(`La promoción ${promotion.name} no tiene componentes configurados.`)
       }
-      const inactive = own.find((component) => component.componentStatus !== 'active')
+      const inactive = own.find(
+        (component) =>
+          component.componentStatus !== 'active' ||
+          componentAvailability.get(component.componentProductId) === 'inactive',
+      )
       if (inactive) {
         throw badRequest(
-          `La promoción incluye el componente inactivo ${inactive.componentName}.`,
+          `La promoción incluye el componente ${inactive.componentName}, que no está activo en el canal.`,
         )
       }
     }

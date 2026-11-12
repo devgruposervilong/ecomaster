@@ -21,6 +21,10 @@ export const CHANNEL_PRICE_STATUSES = ['active', 'inactive'] as const
 export type ChannelPriceStatus = (typeof CHANNEL_PRICE_STATUSES)[number]
 export const channelPriceStatusSchema = z.enum(CHANNEL_PRICE_STATUSES)
 
+export const PRODUCT_CHANNEL_STATUSES = ['active', 'inactive'] as const
+export type ProductChannelStatus = (typeof PRODUCT_CHANNEL_STATUSES)[number]
+export const productChannelStatusSchema = z.enum(PRODUCT_CHANNEL_STATUSES)
+
 /** Tasa fija de IVA general en Venezuela. */
 export const IVA_RATE = 0.16
 
@@ -129,6 +133,11 @@ export const setChannelPriceSchema = z.object({
   status: channelPriceStatusSchema.default('active'),
 })
 
+/** Activa o desactiva un producto dentro de un canal de venta. */
+export const setProductChannelStatusSchema = z.object({
+  status: productChannelStatusSchema,
+})
+
 export const setProductComponentsSchema = z.object({
   components: z
     .array(
@@ -152,6 +161,7 @@ export type UpsertChannelPriceInput = z.infer<typeof upsertChannelPriceSchema>
 export type SyncChannelPricesInput = z.infer<typeof syncChannelPricesSchema>
 export type UpdateChannelPriceInput = z.infer<typeof updateChannelPriceSchema>
 export type SetChannelPriceInput = z.infer<typeof setChannelPriceSchema>
+export type SetProductChannelStatusInput = z.infer<typeof setProductChannelStatusSchema>
 export type SetProductComponentsInput = z.infer<typeof setProductComponentsSchema>
 
 export type Product = {
@@ -221,6 +231,8 @@ export type ProductChannelPrice = {
   itemId: string | null
   price: number | null
   status: ChannelPriceStatus | null
+  /** Disponibilidad del producto en el canal; ausencia de fila = activo. */
+  available: ProductChannelStatus
 }
 
 /** Producto con sus precios por canal. */
@@ -228,6 +240,7 @@ export type CatalogProduct = Product & {
   priceItemId: string | null
   price: number | null
   priceStatus: ChannelPriceStatus | null
+  available: ProductChannelStatus | null
   position: number
   prices: ProductChannelPrice[]
 }
@@ -278,6 +291,11 @@ export const CHANNEL_STATUS_LABELS: Record<ChannelStatus, string> = {
 }
 
 export const CHANNEL_PRICE_STATUS_LABELS: Record<ChannelPriceStatus, string> = {
+  active: 'Activo',
+  inactive: 'Inactivo',
+}
+
+export const PRODUCT_CHANNEL_STATUS_LABELS: Record<ProductChannelStatus, string> = {
   active: 'Activo',
   inactive: 'Inactivo',
 }

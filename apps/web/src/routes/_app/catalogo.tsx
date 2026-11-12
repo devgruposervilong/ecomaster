@@ -209,7 +209,7 @@ function CatalogPage() {
         description={
           tab === 'products'
             ? isGlobal
-              ? 'El producto es global. El precio se define por canal; cada aliado vende con el precio activo de su canal.'
+              ? 'El producto es global. Actívalo por canal y define su precio; cada aliado solo vende lo activo en su canal.'
               : 'Estos son los productos activos en tu canal de precios. Los precios los administra Ecomaster.'
             : tab === 'channels'
               ? isAdmin
@@ -289,7 +289,7 @@ function CatalogPage() {
           <TabsTrigger value="products" className="rounded-lg px-3 text-xs">
             Productos
             {meta ? (
-              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">
+              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-black/45 transition-colors group-data-[state=active]:bg-[#0A0A0A] group-data-[state=active]:text-white">
                 {meta.total}
               </span>
             ) : null}
@@ -297,7 +297,7 @@ function CatalogPage() {
           <TabsTrigger value="channels" className="rounded-lg px-3 text-xs">
             Canales
             {channels.data?.meta ? (
-              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">
+              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-black/45 transition-colors group-data-[state=active]:bg-[#0A0A0A] group-data-[state=active]:text-white">
                 {channels.data.meta.total}
               </span>
             ) : null}
@@ -305,7 +305,7 @@ function CatalogPage() {
           <TabsTrigger value="categories" className="rounded-lg px-3 text-xs">
             Categorías
             {categories.data?.meta ? (
-              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] text-black/45">
+              <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-black/45 transition-colors group-data-[state=active]:bg-[#0A0A0A] group-data-[state=active]:text-white">
                 {categories.data.meta.total}
               </span>
             ) : null}
@@ -431,7 +431,7 @@ function CatalogPage() {
             title="No hay productos para mostrar"
             description={
               isAdmin
-                ? 'Crea un producto y luego define su precio en cada canal.'
+                ? 'Crea un producto y luego actívalo en los canales donde se venda.'
                 : isGlobal
                   ? 'No hay productos activos en el catálogo global.'
                   : 'Tu canal todavía no tiene productos activos.'
@@ -461,14 +461,14 @@ function CatalogPage() {
                   <th className="w-[78px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Tipo
                   </th>
-                  <th className="w-[135px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[129px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Categorías
                   </th>
-                  <th className="w-[90px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
+                  <th className="w-[96px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     IVA
                   </th>
                   <th className="w-[305px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
-                    {isGlobal ? 'Precios por canal' : 'Precio'}
+                    {isGlobal ? 'Canales y precios' : 'Precio'}
                   </th>
                   <th className="w-[96px] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-black/35">
                     Estado
@@ -525,9 +525,9 @@ function CatalogPage() {
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 align-top">
-                      <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[11px] font-medium text-black/60">
-                        {product.ivaEnabled ? '16%' : 'Exento'}
-                      </span>
+                      <div title={product.ivaEnabled ? 'IVA activo (16%)' : 'IVA inactivo (exento)'}>
+                        <StatusBadge status={product.ivaEnabled ? 'active' : 'inactive'} />
+                      </div>
                     </td>
                     <td className="px-4 py-3 align-top">
                       {isGlobal ? (
@@ -650,9 +650,9 @@ function CatalogPage() {
 
       <p className="flex items-start gap-2 text-[11px] leading-5 text-black/40">
         <Info className="mt-0.5 size-3.5 shrink-0" />
-        Los precios se guardan en la base con punto decimal. En la interfaz se muestran con coma y
-        miles según la configuración de Venezuela. Si un canal no tiene precio activo para un
-        producto, solo un administrador puede cobrarlo a mano en la venta.
+        Usa el switch de cada canal para activar o desactivar el producto en ese canal. Los usuarios
+        de un canal solo verán los productos activos para él. Los precios se guardan en la base con
+        punto decimal y se muestran con coma y miles según la configuración de Venezuela.
       </p>
         </TabsContent>
 

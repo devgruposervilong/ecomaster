@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { apiFetch, errorMessage, jsonBody } from '@/lib/api'
 import { categoryOptionsQuery } from '@/lib/queries'
 
@@ -233,39 +234,61 @@ export function ProductFormDialog({
             )}
           </div>
 
-          <div className="space-y-2 rounded-2xl border border-black/10 p-4">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={ivaEnabled}
-                onChange={(event) => setIvaEnabled(event.target.checked)}
-                className="mt-0.5 size-4 accent-[#0A0A0A]"
-              />
-              <span>
-                <span className="block text-sm font-medium text-[#0A0A0A]">
+          <div className="divide-y divide-black/[0.06] rounded-2xl border border-black/10">
+            <div className="flex items-center justify-between gap-4 p-4">
+              <div className="min-w-0">
+                <Label htmlFor="ivaEnabled" className="text-sm font-medium text-[#0A0A0A]">
                   Cobra IVA (16%)
-                </span>
-                <span className="block text-[11px] leading-4 text-black/40">
+                </Label>
+                <p className="mt-1 text-[11px] leading-4 text-black/40">
                   Se aplica sobre la línea después del descuento global.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2.5">
+                <span
+                  className={
+                    ivaEnabled
+                      ? 'text-[11px] font-medium text-[#0A0A0A]'
+                      : 'text-[11px] font-medium text-black/40'
+                  }
+                >
+                  {ivaEnabled ? 'Activo' : 'Inactivo'}
                 </span>
-              </span>
-            </label>
-            <label className="mt-3 flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={trackInventory}
-                onChange={(event) => setTrackInventory(event.target.checked)}
-                className="mt-0.5 size-4 accent-[#0A0A0A]"
-              />
-              <span>
-                <span className="block text-sm font-medium text-[#0A0A0A]">
+                <Switch
+                  id="ivaEnabled"
+                  checked={ivaEnabled}
+                  onCheckedChange={setIvaEnabled}
+                  aria-label="Activar IVA"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 p-4">
+              <div className="min-w-0">
+                <Label htmlFor="trackInventory" className="text-sm font-medium text-[#0A0A0A]">
                   Controlar inventario
-                </span>
-                <span className="block text-[11px] leading-4 text-black/40">
+                </Label>
+                <p className="mt-1 text-[11px] leading-4 text-black/40">
                   En promociones, el inventario se descuenta de sus componentes.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2.5">
+                <span
+                  className={
+                    trackInventory
+                      ? 'text-[11px] font-medium text-[#0A0A0A]'
+                      : 'text-[11px] font-medium text-black/40'
+                  }
+                >
+                  {trackInventory ? 'Activo' : 'Inactivo'}
                 </span>
-              </span>
-            </label>
+                <Switch
+                  id="trackInventory"
+                  checked={trackInventory}
+                  onCheckedChange={setTrackInventory}
+                  aria-label="Controlar inventario"
+                />
+              </div>
+            </div>
           </div>
 
           {type === 'promotion' ? (
