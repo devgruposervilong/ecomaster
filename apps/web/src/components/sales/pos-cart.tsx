@@ -193,55 +193,23 @@ export function PosCart({
             return (
               <div
                 key={line.product.id}
-                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 border-b border-black/[0.06] py-3 last:border-b-0"
+                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-b border-black/[0.06] py-3 last:border-b-0"
               >
-                <button
-                  type="button"
-                  onClick={() => onRemove(line.product.id)}
-                  className="mt-0.5 flex size-7 items-center justify-center rounded-lg text-black/30 transition-colors hover:bg-black/[0.05] hover:text-red-600"
-                  aria-label={`Quitar ${line.product.name}`}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
+                <div className="flex self-center items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onRemove(line.product.id)}
+                    className="flex size-7 shrink-0 items-center justify-center rounded-lg text-black/45 transition-colors hover:bg-black/[0.05] hover:text-red-600"
+                    aria-label={`Quitar ${line.product.name}`}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
 
-                <div className="min-w-0">
-                  <p className="line-clamp-2 text-[12px] font-medium leading-[1.4] text-[#0A0A0A]">
-                    {line.product.name}
-                  </p>
-                  <p className="mt-0.5 flex items-center gap-1 text-[10px] text-black/35">
-                    {line.product.sku}
-                    {line.product.ivaEnabled ? (
-                      <span className="rounded bg-black/[0.05] px-1 py-px text-[9px] text-black/45">
-                        IVA 16%
-                      </span>
-                    ) : null}
-                  </p>
-
-                  {line.manual ? (
-                    <Input
-                      value={manualPrices[line.product.id] ?? ''}
-                      onChange={(event) => onManualPriceChange(line.product.id, event.target.value)}
-                      placeholder="Precio"
-                      inputMode="decimal"
-                      aria-label={`Precio manual de ${line.product.name}`}
-                      className={cn(
-                        'mt-1.5 h-8 w-24 rounded-lg border-black/15 text-right text-[12px] tabular-nums',
-                        (manualPrices[line.product.id] ?? '').trim() === ''
-                          ? 'border-amber-300 bg-amber-50/60'
-                          : '',
-                      )}
-                    />
-                  ) : (
-                    <p className="mt-0.5 text-[10.5px] tabular-nums text-black/45">
-                      {formatAmount(line.price, currency)} c/u
-                    </p>
-                  )}
-
-                  <div className="mt-1.5 inline-flex h-8 items-center rounded-lg border border-black/12">
+                  <div className="inline-flex h-8 shrink-0 items-center rounded-lg border border-black/12">
                     <button
                       type="button"
                       onClick={() => onQuantityChange(line.product.id, line.quantity - 1)}
-                      className="flex size-8 items-center justify-center rounded-l-lg text-black/55 transition-colors hover:bg-black/[0.05] hover:text-[#0A0A0A] disabled:opacity-40"
+                      className="flex size-8 items-center justify-center rounded-l-lg text-black/55 transition-colors hover:bg-black/[0.05] hover:text-[#0A0A0A]"
                       aria-label={`Quitar una unidad de ${line.product.name}`}
                     >
                       <Minus className="size-3.5" />
@@ -257,7 +225,7 @@ export function PosCart({
                       }}
                       inputMode="numeric"
                       aria-label={`Cantidad de ${line.product.name}`}
-                      className="h-8 w-9 border-x border-black/10 bg-transparent text-center text-[12.5px] font-medium tabular-nums text-[#0A0A0A] outline-none"
+                      className="h-8 w-8 border-x border-black/10 bg-transparent text-center text-[12.5px] font-medium tabular-nums text-[#0A0A0A] outline-none"
                     />
                     <button
                       type="button"
@@ -270,7 +238,26 @@ export function PosCart({
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="min-w-0">
+                  <p className="line-clamp-3 min-h-[48px] text-[12px] font-medium leading-[1.4] text-[#0A0A0A]">
+                    {line.product.name}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1 text-[10px] text-black/35">
+                    {line.product.sku}
+                    {line.product.ivaEnabled ? (
+                      <span className="rounded bg-black/[0.05] px-1 py-px text-[9px] text-black/45">
+                        IVA 16%
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="mt-0.5 text-[10.5px] tabular-nums text-black/45">
+                    {line.manual
+                      ? 'Precio manual'
+                      : `${formatAmount(line.price, currency)} c/u`}
+                  </p>
+                </div>
+
+                <div className="flex w-20 flex-col items-end text-right">
                   <p className="text-[12.5px] font-semibold tabular-nums text-[#0A0A0A]">
                     {formatAmount(lineTotal, currency)}
                   </p>
@@ -278,6 +265,21 @@ export function PosCart({
                     <p className="text-[10px] tabular-nums text-black/40">
                       {formatAmount(lineVes, 'VES')}
                     </p>
+                  ) : null}
+                  {line.manual ? (
+                    <Input
+                      value={manualPrices[line.product.id] ?? ''}
+                      onChange={(event) => onManualPriceChange(line.product.id, event.target.value)}
+                      placeholder="Precio"
+                      inputMode="decimal"
+                      aria-label={`Precio manual de ${line.product.name}`}
+                      className={cn(
+                        'mt-2 h-8 w-20 rounded-lg border-black/15 text-right text-[12px] tabular-nums',
+                        (manualPrices[line.product.id] ?? '').trim() === ''
+                          ? 'border-amber-300 bg-amber-50/60'
+                          : '',
+                      )}
+                    />
                   ) : null}
                 </div>
               </div>

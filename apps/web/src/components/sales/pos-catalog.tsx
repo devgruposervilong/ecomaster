@@ -163,7 +163,7 @@ export function PosCatalog({
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
         {loading ? (
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 10 }).map((_, index) => (
               <div
                 key={index}
@@ -185,7 +185,7 @@ export function PosCatalog({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
             {products.map((product) => {
               const selected = quantities[product.id] ?? 0
               const priced = hasActivePrice(product)
