@@ -366,7 +366,7 @@ function PointOfSalePage() {
         eyebrow="Operación"
         title="Punto de venta"
         description="Escanea o toca los productos para armar la cuenta. El servidor calcula los importes y congela la tasa BCV del día."
-        className="hidden lg:flex"
+        className="hidden xl:flex"
         actions={
           <Button asChild variant="outline" className="rounded-xl border-black/15">
             <Link to="/ventas/historial">
@@ -391,8 +391,8 @@ function PointOfSalePage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_408px]">
-        <section className="flex min-h-0 flex-col lg:h-[calc(100svh-13.5rem)] lg:min-h-[560px] lg:rounded-3xl lg:border lg:border-black/10 lg:bg-white lg:p-3.5">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_408px]">
+        <section className="flex min-h-0 min-w-0 flex-col xl:h-[calc(100svh-13.5rem)] xl:min-h-[560px] xl:rounded-3xl xl:border xl:border-black/10 xl:bg-white xl:p-3.5">
           <PosCatalog
             products={visibleProducts}
             categories={categories}
@@ -415,14 +415,14 @@ function PointOfSalePage() {
           />
         </section>
 
-        <aside className="hidden lg:block lg:h-[calc(100svh-13.5rem)] lg:min-h-[560px]">
+        <aside className="hidden xl:block xl:h-[calc(100svh-13.5rem)] xl:min-h-[560px]">
           <PosCart {...cartProps} className="h-full" onFocusSearch={focusSearch} />
         </aside>
       </div>
 
-      <div className="h-24 lg:hidden" />
+      <div className="h-24 xl:hidden" />
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-black/10 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-black/10 bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur xl:hidden">
         <button
           type="button"
           onClick={() => setMobileCartOpen(true)}

@@ -96,8 +96,8 @@ export function PosCatalog({
   const [scannerFocused, setScannerFocused] = useState(false)
 
   return (
-    <div className="flex min-h-0 flex-col gap-3.5">
-      <div className="relative">
+    <div className="flex min-h-0 min-w-0 flex-col gap-3.5">
+      <div className="relative min-w-0">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-black/35" />
         <Input
           ref={searchInputRef}
@@ -161,9 +161,9 @@ export function PosCatalog({
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
+      <div className="min-h-0 min-w-0 flex-1 pr-0.5 xl:overflow-y-auto">
         {loading ? (
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 10 }).map((_, index) => (
               <div
                 key={index}
@@ -185,7 +185,7 @@ export function PosCatalog({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-4">
             {products.map((product) => {
               const selected = quantities[product.id] ?? 0
               const priced = hasActivePrice(product)
@@ -200,7 +200,7 @@ export function PosCatalog({
                   aria-label={`Agregar ${product.name} al carrito`}
                   title={product.name}
                   className={cn(
-                    'group relative flex h-full flex-col gap-1.5 rounded-2xl border bg-white p-2.5 text-left transition-all',
+                    'group relative flex h-full min-w-0 flex-col gap-1.5 rounded-2xl border bg-white p-2.5 text-left transition-all',
                     'hover:-translate-y-0.5 hover:border-black/25 hover:shadow-[0_12px_28px_-22px_rgba(10,10,10,0.45)]',
                     selected > 0
                       ? 'border-[#BCD86C] bg-[#FAFDEF] ring-1 ring-[#BCD86C]/60'
