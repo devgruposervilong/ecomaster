@@ -52,7 +52,7 @@ packages/
   shared/    Contratos Zod y tipos compartidos entre API y web
 ```
 
-En producción el Worker `ecomaster-api` sirve el frontend (PWA) y la API
+En producción el Worker `ecomaster` sirve el frontend (PWA) y la API
 (`/api/*`) en el mismo origen.
 
 ## Puesta en marcha
@@ -101,7 +101,7 @@ Para producción, `pnpm --filter @ecomaster/api run deploy` ejecuta
 gratuito de Cloudflare y configura automáticamente la URL pública:
 
 ```text
-https://ecomaster-api.devgruposervilong.workers.dev
+https://ecomaster.devgruposervilong.workers.dev
 ```
 
 El primer acceso a producción se hace en `/setup` usando el `SETUP_TOKEN` del
@@ -129,7 +129,7 @@ Los secretos de producción deben cargarse desde el panel del Worker
 La tienda online `https://ecomaster.winktienda.com/` envía sus ventas a:
 
 ```text
-POST https://ecomaster-api.devgruposervilong.workers.dev/api/webhooks/wink
+POST https://ecomaster.devgruposervilong.workers.dev/api/webhooks/wink
 ```
 
 Autenticación HMAC-SHA256:
@@ -163,12 +163,12 @@ Puesta en marcha en producción:
    ```
 
 3. Carga el secreto en el panel de Cloudflare (**Workers & Pages →
-   ecomaster-api → Settings → Variables and Secrets → Add secret**) con el
+   ecomaster → Settings → Variables and Secrets → Add secret**) con el
    nombre `WINK_WEBHOOK_SECRET`. Como alternativa, desde el CLI:
 
    ```powershell
    pnpm --filter @ecomaster/api exec cf workers secrets update WINK_WEBHOOK_SECRET `
-     --worker ecomaster-api --type secret_text --text "el-secreto"
+     --worker ecomaster --type secret_text --text "el-secreto"
    ```
 
    El valor pasado con `--text` queda en el historial del shell; el panel es la

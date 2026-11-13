@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process'
  * `cf deploy` construye y despliega el Worker. Le pasamos la URL pública para
  * que `cloudflare.config.ts` la use como APP_URL/BETTER_AUTH_URL.
  */
-const CLOUDFLARE_URL = 'https://ecomaster-api.devgruposervilong.workers.dev'
+const CLOUDFLARE_URL = 'https://ecomaster.devgruposervilong.workers.dev'
 
 const appUrl = process.env.APP_URL ?? CLOUDFLARE_URL
 const env = {

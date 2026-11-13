@@ -12,7 +12,7 @@ const appEnv = envVars?.APP_ENV ?? 'development'
 
 export default defineConfig({
   worker: {
-    name: 'ecomaster-api',
+    name: 'ecomaster',
     compatibilityDate: '2026-09-01',
     compatibilityFlags: ['nodejs_compat'],
     entrypoint: 'src/index.ts',

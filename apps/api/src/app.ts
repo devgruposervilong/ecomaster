@@ -66,7 +66,7 @@ app.onError((error, c) => {
   return c.text('Internal Server Error', 500)
 })
 
-app.get('/api', (c) => c.json({ name: 'ecomaster-api', status: 'ok' }))
+app.get('/api', (c) => c.json({ name: 'ecomaster', status: 'ok' }))
 
 app.get('/api/health', async (c) => {
   const db = createDb(c.env.DB)
